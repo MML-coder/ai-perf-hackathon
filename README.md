@@ -2,6 +2,35 @@
 
 Autonomous AI agent for diagnosing and resolving performance issues on RHEL systems running Nginx.
 
+## Get Started in 20 Seconds
+
+```bash
+# 1. Clone and install
+git clone https://github.com/MML-coder/ai-perf-hackathon.git
+cd ai-perf-hackathon
+pip install -r requirements.txt
+
+# 2. Configure Vertex AI credentials
+export ANTHROPIC_VERTEX_PROJECT_ID="your-gcp-project-id"
+gcloud auth application-default login  # If not already authenticated
+
+# 3. Run the agent
+python -m agent \
+  --sut <nginx-server-host> \
+  --benchmark <benchmark-host> \
+  --vertex \
+  --agentic
+```
+
+**That's it!** The agent will autonomously:
+1. Collect baseline metrics
+2. Analyze with Claude LLM  
+3. Apply tunings
+4. Verify improvement
+5. Generate report with decisions + token costs
+
+---
+
 ## Solution Overview
 
 This solution implements an **AI-powered performance tuning agent** that:
@@ -63,31 +92,49 @@ Customer reports performance degradation in Nginx web server for small and mediu
 
 ## Quick Start
 
+### Prerequisites
+
+- Python 3.10+
+- SSH access to SUT and benchmark nodes
+- Google Cloud Vertex AI access (for Claude API)
+
+### Vertex AI Setup
+
+```bash
+# 1. Install gcloud CLI and authenticate
+gcloud auth application-default login
+
+# 2. Set your project ID
+export ANTHROPIC_VERTEX_PROJECT_ID="your-gcp-project-id"
+```
+
 ### Running the AI Agent
 
 ```bash
 # 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Set API key
-export ANTHROPIC_API_KEY="your-api-key"
-
-# 3. Run the agent (full autonomous mode)
+# 2. Run the agent with Vertex AI
 python -m agent \
   --sut e40-h34-000-r650.rdu2.scalelab.redhat.com \
-  --benchmark e40-h37-000-r650.rdu2.scalelab.redhat.com
+  --benchmark e40-h37-000-r650.rdu2.scalelab.redhat.com \
+  --vertex \
+  --agentic
 
-# 4. View the generated report
+# 3. View the generated report
 cat reports/report_*.md
 ```
 
 ### Agent CLI Options
 
 ```bash
-# Use a specific model (sonnet, opus, haiku)
-python -m agent --sut HOST --benchmark HOST --model opus
-
 # Dry run (analyze but don't apply changes)
+python -m agent --sut HOST --benchmark HOST --vertex --dry-run
+
+# Use a specific model (sonnet, opus, haiku)
+python -m agent --sut HOST --benchmark HOST --vertex --model opus
+
+# Analyze only, no benchmark
 python -m agent --sut HOST --benchmark HOST --dry-run
 
 # Use existing benchmark results
