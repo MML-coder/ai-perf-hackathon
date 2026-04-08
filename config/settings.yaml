@@ -1,0 +1,33 @@
+# AI Performance Agent Configuration
+
+# Default model to use (can be overridden with --model)
+# Options: sonnet, opus, haiku, or full model ID
+model: sonnet
+
+# SSH settings
+ssh:
+  user: root
+  timeout: 30
+
+# Benchmark settings
+benchmark:
+  workloads:
+    - homepage
+    - small
+    - medium
+    - large
+    - mixed
+  default_contestant: agent
+
+# Report settings
+reports:
+  output_dir: reports
+  format: both  # markdown, json, or both
+
+# Tuning categories to apply (all by default)
+# Options: nginx, kernel, disk, network
+tuning_categories:
+  - nginx
+  - kernel
+  - disk
+  - network

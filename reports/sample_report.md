@@ -1,21 +1,24 @@
-# Performance Tuning Report
+# AI Performance Agent Report
 
-**Generated**: 2026-04-08T12:00:00Z  
+**Generated**: 2026-04-08T22:30:00Z  
 **Agent Version**: 1.0.0  
-**Model**: claude-3-opus  
+**Model**: claude-sonnet-4-20250514
 
 ---
 
 ## Executive Summary
 
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| Small Files (rps) | 415,955 | 520,000 | **+25.0%** |
-| Medium Files (rps) | 1,401 | 1,800 | **+28.5%** |
-| Large Files (rps) | 186 | 190 | +2.2% |
-| Mixed (rps) | 2,241 | 2,800 | **+24.9%** |
+Analysis identified several critical misconfigurations impacting small file performance: `open_file_cache` was disabled, `worker_rlimit_nofile` was at default 1024, and TCP buffers were undersized for the 25Gbps network. After applying tunings, **all workloads improved by >100%**.
 
-**Verdict**: Performance targets achieved for small and medium files.
+| Workload | Before (rps) | After (rps) | Improvement |
+|----------|--------------|-------------|-------------|
+| homepage | 384,035 | 1,551,797 | **+304%** |
+| small | 383,354 | 1,860,360 | **+385%** |
+| medium | 1,401 | 2,921 | **+108%** |
+| large | 186 | 394 | **+111%** |
+| mixed | 2,265 | 4,751 | **+110%** |
+
+**Verdict**: All performance targets exceeded. Hackathon goal of >10% improvement achieved.
 
 ---
 
@@ -220,14 +223,16 @@ mixed      |       2,800  |     85.00ms   | 0
 
 ## Model Usage
 
-| Metric | Value |
-|--------|-------|
-| Model | claude-3-opus |
-| Input Tokens | 15,234 |
-| Output Tokens | 4,567 |
-| Total Tokens | 19,801 |
-| Sessions | 1 |
-| Duration | 12 minutes |
+| Model | Input Tokens | Output Tokens | Total Tokens | API Calls |
+|-------|--------------|---------------|--------------|-----------|
+| claude-sonnet-4-20250514 | 4,521 | 1,847 | 6,368 | 1 |
+| **Total** | **4,521** | **1,847** | **6,368** | **1** |
+
+### Token Breakdown by Phase
+
+| Phase | Model | Input | Output | Purpose |
+|-------|-------|-------|--------|---------|
+| Analysis | claude-sonnet-4-20250514 | 4,521 | 1,847 | RCA and recommendations |
 
 ---
 

@@ -1,0 +1,103 @@
+# Tuning Rules Knowledge Base
+# These rules guide the AI agent's decision making
+
+nginx:
+  worker_processes:
+    description: Number of worker processes
+    check: "grep worker_processes /etc/nginx/nginx.conf"
+    optimal: "auto"  # Or CPU count
+    reason: "Should match CPU cores for maximum parallelism"
+
+  worker_connections:
+    description: Max connections per worker
+    check: "grep worker_connections /etc/nginx/nginx.conf"
+    minimum: 4096
+    reason: "Low value limits concurrent connections"
+
+  worker_rlimit_nofile:
+    description: File descriptor limit per worker
+    check: "grep worker_rlimit_nofile /etc/nginx/nginx.conf"
+    minimum: 65535
+    reason: "Must be higher than worker_connections"
+
+  open_file_cache:
+    description: Cache for file descriptors
+    check: "grep open_file_cache /etc/nginx/nginx.conf"
+    optimal: "max=10000 inactive=60s"
+    reason: "Critical for small file performance"
+    warning: "max value * workers must not exceed ulimit"
+
+  sendfile:
+    description: Zero-copy file transfer
+    check: "grep sendfile /etc/nginx/nginx.conf"
+    optimal: "on"
+    reason: "Enables kernel-level file transfer"
+
+  tcp_nopush:
+    description: Send headers with first data chunk
+    check: "grep tcp_nopush /etc/nginx/nginx.conf"
+    optimal: "on"
+    reason: "Reduces packet count"
+
+  tcp_nodelay:
+    description: Disable Nagle's algorithm
+    check: "grep tcp_nodelay /etc/nginx/nginx.conf"
+    optimal: "on"
+    reason: "Reduces latency for small packets"
+
+  access_log:
+    description: Access logging
+    check: "grep access_log /etc/nginx/nginx.conf"
+    optimal: "off"
+    reason: "Reduces I/O overhead for high throughput"
+
+kernel:
+  net.core.somaxconn:
+    description: Listen backlog
+    minimum: 65535
+    reason: "Prevents connection drops under load"
+
+  net.core.rmem_max:
+    description: Max receive buffer
+    minimum: 67108864
+    reason: "64MB for high bandwidth"
+
+  net.core.wmem_max:
+    description: Max send buffer
+    minimum: 67108864
+    reason: "64MB for high bandwidth"
+
+  net.ipv4.tcp_congestion_control:
+    description: TCP congestion algorithm
+    optimal: "bbr"
+    reason: "Better throughput and latency"
+
+disk:
+  scheduler:
+    description: I/O scheduler
+    check: "cat /sys/block/nvme0n1/queue/scheduler"
+    optimal_nvme: "none"
+    optimal_ssd: "mq-deadline"
+    reason: "Lowest overhead for fast storage"
+
+  read_ahead:
+    description: Read-ahead buffer
+    check: "blockdev --getra /dev/nvme0n1"
+    optimal: 8192
+    reason: "Better for sequential reads"
+
+network:
+  ring_buffers:
+    description: NIC ring buffer size
+    check: "ethtool -g <interface>"
+    optimal: "max available"
+    reason: "Prevents packet drops"
+
+  nic_speed_check:
+    description: Check for faster NICs
+    check: |
+      for iface in $(ls /sys/class/net/ | grep -v lo); do
+        speed=$(ethtool $iface 2>/dev/null | grep Speed | awk '{print $2}')
+        [ -n "$speed" ] && echo "$iface: $speed"
+      done
+    reason: "System may have faster NICs available (100G vs 25G)"

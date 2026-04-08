@@ -1,0 +1,224 @@
+"""
+Analyzer module - performs root cause analysis using LLM.
+"""
+import json
+from dataclasses import dataclass, field
+from typing import Optional
+
+from .llm import ClaudeClient, LLMResponse
+from .collector import SystemMetrics, BenchmarkResult
+
+
+@dataclass
+class TuningRecommendation:
+    """A single tuning recommendation."""
+    category: str  # nginx, kernel, disk, network
+    setting: str
+    current_value: str
+    recommended_value: str
+    reason: str
+    impact: str  # high, medium, low
+    command: str  # Command to apply the change
+
+    def to_dict(self) -> dict:
+        return {
+            "category": self.category,
+            "setting": self.setting,
+            "current_value": self.current_value,
+            "recommended_value": self.recommended_value,
+            "reason": self.reason,
+            "impact": self.impact,
+            "command": self.command,
+        }
+
+
+@dataclass
+class AnalysisResult:
+    """Result of RCA analysis."""
+    summary: str
+    bottlenecks: list[str]
+    recommendations: list[TuningRecommendation]
+    raw_response: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "summary": self.summary,
+            "bottlenecks": self.bottlenecks,
+            "recommendations": [r.to_dict() for r in self.recommendations],
+        }
+
+
+SYSTEM_PROMPT = """You are an expert performance engineer specializing in Nginx and RHEL Linux optimization.
+
+Your task is to analyze system metrics and benchmark results, identify performance bottlenecks, and provide specific tuning recommendations.
+
+IMPORTANT: Respond in valid JSON format only. No markdown, no explanations outside JSON.
+
+Response format:
+{
+  "summary": "Brief summary of findings",
+  "bottlenecks": ["bottleneck1", "bottleneck2"],
+  "recommendations": [
+    {
+      "category": "nginx|kernel|disk|network",
+      "setting": "setting name",
+      "current_value": "current value or 'not set'",
+      "recommended_value": "recommended value",
+      "reason": "why this helps",
+      "impact": "high|medium|low",
+      "command": "exact command to apply"
+    }
+  ]
+}
+
+Key tuning areas to check:
+1. Nginx: worker_processes, worker_connections, open_file_cache, sendfile, tcp_nopush, tcp_nodelay, worker_rlimit_nofile
+2. Kernel: net.core.somaxconn, net.core.rmem_max/wmem_max, tcp_congestion_control (bbr)
+3. File limits: ulimit, systemd LimitNOFILE
+4. Disk: I/O scheduler (none for NVMe), read-ahead
+5. Network: Check for faster NICs, ring buffers, NIC queues
+
+Focus on high-impact changes first. Be specific with values and commands."""
+
+
+class Analyzer:
+    """Performs root cause analysis using Claude."""
+
+    def __init__(self, llm_client: ClaudeClient):
+        self.llm = llm_client
+        self.decision_log: list[dict] = []
+
+    def analyze(
+        self,
+        metrics: SystemMetrics,
+        baseline_results: Optional[list[BenchmarkResult]] = None,
+    ) -> AnalysisResult:
+        """Analyze system metrics and identify bottlenecks."""
+
+        # Build the analysis prompt
+        prompt = self._build_analysis_prompt(metrics, baseline_results)
+
+        # Call LLM
+        response = self.llm.analyze(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=prompt,
+        )
+
+        # Log the decision
+        self.decision_log.append({
+            "action": "analyze_metrics",
+            "input_summary": f"CPU: {metrics.cpu_cores} cores, RAM: {metrics.memory_gb}GB, Workers: {metrics.nginx_workers}",
+            "input_tokens": response.input_tokens,
+            "output_tokens": response.output_tokens,
+            "model": response.model,
+        })
+
+        # Parse response
+        return self._parse_analysis_response(response)
+
+    def _build_analysis_prompt(
+        self,
+        metrics: SystemMetrics,
+        baseline_results: Optional[list[BenchmarkResult]] = None,
+    ) -> str:
+        """Build the prompt for analysis."""
+
+        prompt_parts = [
+            "Analyze this RHEL/Nginx system for performance bottlenecks.",
+            "",
+            "## System Information",
+            f"- Hostname: {metrics.hostname}",
+            f"- CPU Cores: {metrics.cpu_cores}",
+            f"- Memory: {metrics.memory_gb} GB",
+            f"- Nginx Workers: {metrics.nginx_workers}",
+            f"- Disk Scheduler: {metrics.disk_scheduler}",
+            "",
+            "## Nginx Configuration",
+            "```",
+            metrics.nginx_config,
+            "```",
+            "",
+            "## Kernel Parameters",
+        ]
+
+        for key, value in metrics.sysctl_params.items():
+            prompt_parts.append(f"- {key}: {value}")
+
+        prompt_parts.extend([
+            "",
+            "## File Limits",
+        ])
+        for key, value in metrics.file_limits.items():
+            prompt_parts.append(f"- {key}: {value}")
+
+        prompt_parts.extend([
+            "",
+            "## Network Interfaces",
+        ])
+        for nic in metrics.nic_info:
+            prompt_parts.append(f"- {nic['interface']}: {nic['speed']} (IP: {nic['ip']})")
+
+        if baseline_results:
+            prompt_parts.extend([
+                "",
+                "## Current Benchmark Results",
+            ])
+            for result in baseline_results:
+                prompt_parts.append(
+                    f"- {result.workload}: {result.requests_per_sec:.0f} rps, "
+                    f"latency avg={result.latency_avg}, p99={result.latency_p99}"
+                )
+
+        prompt_parts.extend([
+            "",
+            "Identify bottlenecks and provide specific tuning recommendations.",
+            "Focus on small and medium file performance.",
+        ])
+
+        return "\n".join(prompt_parts)
+
+    def _parse_analysis_response(self, response: LLMResponse) -> AnalysisResult:
+        """Parse the LLM response into AnalysisResult."""
+        try:
+            # Try to extract JSON from response
+            content = response.content.strip()
+
+            # Handle markdown code blocks
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0]
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0]
+
+            data = json.loads(content)
+
+            recommendations = []
+            for rec in data.get("recommendations", []):
+                recommendations.append(TuningRecommendation(
+                    category=rec.get("category", "unknown"),
+                    setting=rec.get("setting", ""),
+                    current_value=rec.get("current_value", ""),
+                    recommended_value=rec.get("recommended_value", ""),
+                    reason=rec.get("reason", ""),
+                    impact=rec.get("impact", "medium"),
+                    command=rec.get("command", ""),
+                ))
+
+            return AnalysisResult(
+                summary=data.get("summary", ""),
+                bottlenecks=data.get("bottlenecks", []),
+                recommendations=recommendations,
+                raw_response=response.content,
+            )
+
+        except (json.JSONDecodeError, KeyError) as e:
+            # Return a basic result if parsing fails
+            return AnalysisResult(
+                summary=f"Failed to parse LLM response: {e}",
+                bottlenecks=[],
+                recommendations=[],
+                raw_response=response.content,
+            )
+
+    def get_decision_log(self) -> list[dict]:
+        """Get the decision log for reporting."""
+        return self.decision_log
