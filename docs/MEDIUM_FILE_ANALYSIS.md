@@ -208,3 +208,70 @@ IF medium files slow:
 3. **Jumbo frames require switch support - test carefully**
 4. **Ring buffers and NIC queues only help if packets are being dropped**
 5. **TCP tuning helps latency, not throughput when network-saturated**
+
+---
+
+## CRITICAL: Check for Faster Network Interfaces
+
+The system may have multiple NICs with different speeds!
+
+### Discovery Commands
+
+```bash
+# List all interfaces and their speeds
+for iface in $(ls /sys/class/net/ | grep -v lo); do
+  speed=$(ethtool $iface 2>/dev/null | grep Speed | awk '{print $2}')
+  echo "$iface: $speed"
+done
+
+# Check for 100G capable NICs
+lspci | grep -i ethernet | grep -iE "mellanox|connectx|100g"
+
+# Check current vs available speeds
+ethtool <interface> | grep -E 'Speed|Supported link'
+```
+
+### Example: This System Has Both 25G and 100G
+
+```
+eno12399np0: 25000Mb/s   ← Currently used (test-machine points here)
+ens2f0np0:   100000Mb/s  ← 4x faster! (Mellanox ConnectX-6 Dx)
+ens2f1np1:   100000Mb/s  ← 4x faster!
+```
+
+### To Use 100G Network
+
+**Option 1**: Update /etc/hosts on benchmark node:
+```bash
+# Find the 100G IP
+ssh root@<DUT> "ip addr show ens2f0np0.103 | grep inet"
+# Example: 172.23.90.86
+
+# Update hosts file
+sed -i 's/10.1.90.86/172.23.90.86/' /etc/hosts
+# OR
+echo "172.23.90.86 test-machine-100g" >> /etc/hosts
+```
+
+**Option 2**: Run benchmark with explicit IP:
+```bash
+wrk -t16 -c300 -d60s -s /root/hackathon-tools/medium.lua http://172.23.90.86/
+```
+
+### Results Comparison
+
+| Network | Medium rps | Transfer/sec | Notes |
+|---------|------------|--------------|-------|
+| 25G     | 1,400      | 2.74 GB/s    | Network-limited at 87% |
+| 100G    | 2,900-5,600| 5.7-10.9 GB/s| 2-4x improvement |
+
+### Agent Decision Tree Update
+
+```
+IF medium/large files slow:
+  1. Check current network speed: ethtool <iface> | grep Speed
+  2. Check for faster NICs: for iface in $(ls /sys/class/net/); do ethtool $iface 2>/dev/null | grep -q 100000 && echo "$iface: 100G"; done
+  3. IF 100G available AND not in use:
+     → Update /etc/hosts or benchmark command to use 100G IP
+     → Expected improvement: 4x for network-limited workloads
+```

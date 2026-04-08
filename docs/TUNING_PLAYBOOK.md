@@ -481,6 +481,49 @@ IF timeouts:
 | 2026-04-08 | NVMe scheduler=none | **APPLIED** | Lowest overhead for NVMe |
 | 2026-04-08 | Read-ahead 8192 | **APPLIED** | Better for 2MB files |
 
+### Network Interface Discovery (Agent MUST Check This)
+
+**Before concluding "network-limited", the agent MUST check for faster NICs:**
+
+```bash
+# Step 1: Discover all NICs and their speeds (IPs vary per machine)
+echo "=== NIC Speed Discovery ==="
+for iface in $(ls /sys/class/net/ | grep -v lo); do
+  speed=$(ethtool $iface 2>/dev/null | grep Speed | awk '{print $2}')
+  ip=$(ip addr show $iface 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
+  [ -n "$speed" ] && echo "$iface: $speed (IP: ${ip:-no-ip})"
+done
+
+# Step 2: Check current test-machine target
+echo ""
+echo "=== Current benchmark target ==="
+grep test-machine /etc/hosts
+
+# Step 3: Find the fastest NIC with an IP
+echo ""
+echo "=== Fastest available NIC ==="
+for iface in $(ls /sys/class/net/ | grep -v lo); do
+  speed=$(ethtool $iface 2>/dev/null | grep Speed | awk '{print $2}' | tr -d 'Mb/s')
+  ip=$(ip addr show $iface 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
+  [ -n "$speed" ] && [ -n "$ip" ] && echo "$speed $iface $ip"
+done | sort -rn | head -1
+```
+
+**Example Output:**
+```
+=== NIC Speed Discovery ===
+eno12399np0: 25000Mb/s (IP: 10.1.90.86)     ← Currently used
+ens2f0np0.103: 100000Mb/s (IP: 172.23.90.86) ← 4x faster!
+
+=== Fastest available NIC ===
+100000 ens2f0np0.103 172.23.90.86
+```
+
+**Agent Action**: If faster NIC found, inform user:
+> "Discovered 100G NIC available. Current benchmark uses 25G. For medium/large files, 
+> run benchmark against the faster IP for up to 4x improvement:
+> `wrk ... http://<100G-IP>/`"
+
 ### Network Bandwidth Analysis (Critical Finding)
 
 **Medium files are NETWORK-LIMITED, not Nginx-limited:**
@@ -494,7 +537,7 @@ Utilization: 22.4 / 25 = 89.6%
 ```
 
 **Conclusion**: Medium file rps cannot improve significantly without:
-- Faster network (100Gbps)
+- Faster network (100Gbps) - **CHECK IF AVAILABLE FIRST**
 - Compression (if files are compressible)
 - Smaller file responses
 
