@@ -472,7 +472,53 @@ IF timeouts:
 
 | Date | Tuning | Result | Notes |
 |------|--------|--------|-------|
-| | | | |
+| 2026-04-08 | open_file_cache max=500000 | **FAILED** | Caused "Too many open files" - with 112 workers, total FDs exceeded system limits |
+| 2026-04-08 | open_file_cache max=10000 | **SUCCESS** | 10K per worker * 112 workers = 1.12M max FDs, within limits. Small files: 424K → 1.28M rps (+202%) |
+| 2026-04-08 | worker_rlimit_nofile 65535 | **REQUIRED** | Must set per-worker limit AND systemd LimitNOFILE |
+| 2026-04-08 | access_log off | **SUCCESS** | Reduces I/O overhead, significant for high-throughput |
+| 2026-04-08 | keepalive_requests 10000 | **SUCCESS** | Reduces connection overhead for benchmark |
+| 2026-04-08 | aio threads + directio 512k | **APPLIED** | For medium files (2MB) |
+| 2026-04-08 | NVMe scheduler=none | **APPLIED** | Lowest overhead for NVMe |
+| 2026-04-08 | Read-ahead 8192 | **APPLIED** | Better for 2MB files |
+
+### Network Bandwidth Analysis (Critical Finding)
+
+**Medium files are NETWORK-LIMITED, not Nginx-limited:**
+
+```
+Medium file size: 2MB
+Requests/sec: 1,400
+Throughput: 2MB × 1,400 = 2.8 GB/s = 22.4 Gbps
+Network capacity: 25 Gbps
+Utilization: 22.4 / 25 = 89.6%
+```
+
+**Conclusion**: Medium file rps cannot improve significantly without:
+- Faster network (100Gbps)
+- Compression (if files are compressible)
+- Smaller file responses
+
+This is NOT a misconfiguration - it's physics.
+
+### Critical Findings
+
+**open_file_cache Calculation:**
+```
+max_cache_entries = worker_rlimit_nofile / 2  # Leave room for connections
+total_max = max_cache_entries * num_workers
+```
+
+For 112-core system with ulimit 65535:
+- Safe per-worker: ~10,000-30,000
+- Total capacity: 1.1M - 3.3M cached files
+
+**Symptom → Cause Mapping:**
+| Symptom | Likely Cause |
+|---------|--------------|
+| "Too many open files" in error.log | open_file_cache max too high OR ulimit too low |
+| Non-2xx responses during benchmark | File descriptor exhaustion |
+| Homepage fast, small files slow | Missing open_file_cache |
+| Medium files timeout | Disk I/O bottleneck (not yet solved) |
 
 ---
 
