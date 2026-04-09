@@ -75,12 +75,14 @@ TUNING AREAS (in priority order):
 NGINX (immediate effect):
 - worker_processes auto (match CPU cores)
 - worker_rlimit_nofile 65535 (file descriptor limit per worker)
-- worker_connections 4096 (concurrent connections per worker)
+- worker_connections 16384 (high concurrent connections per worker)
 - open_file_cache max=10000 inactive=60s (CRITICAL for small files)
 - sendfile on, tcp_nopush on, tcp_nodelay on
 - access_log off (reduce I/O overhead)
 - keepalive_requests 10000
-- aio threads, directio 512k (for large files)
+- multi_accept on (accept all connections at once)
+- reuseport on listen directive (eliminates accept mutex contention across workers)
+- DO NOT USE directio or aio threads! They bypass page cache and cause ~50% degradation when data fits in RAM
 
 KERNEL TCP (immediate via sysctl):
 - net.core.somaxconn = 65535
@@ -90,6 +92,9 @@ KERNEL TCP (immediate via sysctl):
 - net.ipv4.tcp_wmem = 4096 1048576 67108864
 - net.ipv4.tcp_congestion_control = bbr
 - net.core.netdev_max_backlog = 65535
+- net.core.busy_poll = 50 (reduce latency for network I/O)
+- net.ipv4.tcp_fastopen = 3 (enable TFO for client+server)
+- vm.swappiness = 1 (minimize swapping)
 
 FILE LIMITS:
 - /etc/systemd/system/nginx.service.d/limits.conf with LimitNOFILE=65535
@@ -112,7 +117,10 @@ NETWORK (CRITICAL - CHECK FIRST!):
   ssh benchmark_host "sed -i 's/^[^#].*test-machine/#&/' /etc/hosts"
   ssh benchmark_host "echo '<100G-IP> test-machine' >> /etc/hosts"
 - This alone can give 3-4x improvement for medium/large files!
-- Ring buffers: ethtool -G <iface> rx 2047 tx 2047
+- Ring buffers: ethtool -G <iface> rx 8192 tx 8192 (use maximum available)
+- NIC offloads: ethtool -K <iface> gro on gso on tso on
+- Adaptive coalescing: ethtool -C <iface> adaptive-rx on adaptive-tx on
+- RPS (Receive Packet Steering): echo <cpu_mask> > /sys/class/net/<iface>/queues/rx-*/rps_cpus
 
 TUNED PROFILE:
 - tuned-adm profile throughput-performance

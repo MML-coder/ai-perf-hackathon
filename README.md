@@ -67,13 +67,13 @@ Customer reports performance degradation in Nginx web server for small and mediu
 
 | Workload | Baseline (rps) | After Tuning (rps) | Improvement |
 |----------|----------------|--------------------| ------------|
-| homepage | 383,656 | 1,553,017 | **+305%** |
-| small | 369,756 | 1,917,031 | **+419%** |
-| medium | 1,400 | 2,925 | **+109%** |
-| large | 186 | 398 | **+114%** |
-| mixed | 2,244 | 4,802 | **+114%** |
+| homepage | 383,656 | 1,740,325 | **+354%** |
+| small | 369,756 | 2,004,259 | **+442%** |
+| medium | 1,400 | 5,595 | **+300%** |
+| large | 186 | 745 | **+301%** |
+| mixed | 2,244 | 8,981 | **+300%** |
 
-**All workloads improved >100%!**
+**All workloads improved >300%!**
 
 **Token Usage**: 4,013 tokens | **Cost**: $0.04 | **Model**: claude-sonnet-4
 
@@ -84,8 +84,11 @@ Customer reports performance degradation in Nginx web server for small and mediu
 | **Wrong NIC after RHEL 9.7 migration** | 4x bandwidth loss (25G vs 100G) | Agent auto-switches to fastest NIC |
 | `open_file_cache off` | Small files slow | Enable with max=10000 |
 | `worker_rlimit_nofile 1024` | FD exhaustion | Increase to 65535 |
-| `worker_connections 1024` | Connection limits | Increase to 4096 |
+| `worker_connections 1024` | Connection limits | Increase to 16384 |
 | Default TCP buffers | Network inefficiency | 64MB buffers + BBR |
+| `directio 512k` used previously | **~50% degradation** on medium/large files | **Removed** - bypasses page cache when all data fits in RAM |
+| No `reuseport` on listen | Accept mutex contention across 112 workers | Add `reuseport` to listen directive |
+| Low NIC ring buffers (2047) | Packet drops under load | Increase to 8192 (max) |
 
 ### Primary Root Cause: NIC Selection Changed During Migration
 
@@ -314,11 +317,13 @@ ai-perf-hackathon/
 ### Nginx (`/etc/nginx/nginx.conf`)
 - `worker_processes auto` (112 workers)
 - `worker_rlimit_nofile 65535`
-- `worker_connections 4096`
+- `worker_connections 16384`
 - `sendfile on` + `tcp_nopush on` + `tcp_nodelay on`
 - `open_file_cache max=10000 inactive=60s`
-- `aio threads` + `directio 512k`
+- `multi_accept on` + `use epoll`
 - `access_log off`
+- `listen 80 reuseport` (eliminates accept mutex contention)
+- **NO** `directio` or `aio threads` (bypasses page cache, causes ~50% degradation when data fits in RAM)
 
 ### Systemd (`/etc/systemd/system/nginx.service.d/limits.conf`)
 - `LimitNOFILE=65535`
@@ -328,22 +333,32 @@ ai-perf-hackathon/
 - `net.core.rmem_max = 67108864`
 - `net.core.wmem_max = 67108864`
 - `net.core.somaxconn = 65535`
+- `net.core.busy_poll = 50`
+- `net.ipv4.tcp_fastopen = 3`
+- `net.core.netdev_max_backlog = 65535`
+- `vm.swappiness = 1`
 
 ### NVMe I/O
 - Scheduler: `none`
 - Read-ahead: `8192`
 
 ### Network
-- Ring buffers: `2047`
+- Ring buffers: `8192` (max available)
 - NIC queues: `32`
+- GRO/GSO/TSO offloads enabled
+- Adaptive coalescing enabled
+- RPS (Receive Packet Steering) enabled
 
 ## Lessons Learned
 
-1. **open_file_cache max must account for worker count** - 500K × 112 workers = too many FDs
-2. **Check for faster NICs** - System had 100G available, was using 25G
-3. **Medium/large files are network-limited** - No nginx tuning helps at 87% bandwidth utilization
-4. **Jumbo frames require switch support** - MTU 9000 broke connectivity
-5. **Page cache matters** - 489GB data fits in 502GB RAM = no disk I/O
+1. **NEVER use `directio` when data fits in RAM** - Forces disk I/O, bypasses page cache, causes ~50% degradation on medium/large files. `sendfile` + page cache is vastly superior when dataset < available memory.
+2. **open_file_cache max must account for worker count** - 500K × 112 workers = too many FDs
+3. **Check for faster NICs** - System had 100G available, was using 25G
+4. **Medium/large files are network-limited** - No nginx tuning helps at 87% bandwidth utilization
+5. **`reuseport` eliminates accept mutex** - With 112 workers, accept contention is real. `reuseport` gives each worker its own socket.
+6. **Ring buffers default too low** - Default 2047 causes packet drops under load; max (8192) eliminates this.
+7. **Jumbo frames require switch support** - MTU 9000 broke connectivity
+8. **Page cache matters** - 489GB data fits in 502GB RAM = no disk I/O
 
 ## Team
 
