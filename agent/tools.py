@@ -20,9 +20,10 @@ class ToolResult:
 class AgentTools:
     """Tools available to the autonomous agent."""
 
-    def __init__(self, sut: SSHClient, benchmark: SSHClient):
+    def __init__(self, sut: SSHClient, benchmark: SSHClient, contestant: str = "agent-test"):
         self.sut = sut
         self.benchmark = benchmark
+        self.contestant = contestant
         self.command_history: list[dict] = []
 
     def run_command(self, command: str, target: str = "sut") -> ToolResult:
@@ -85,9 +86,13 @@ class AgentTools:
         )
 
     def run_benchmark(self, workload: str = "small") -> ToolResult:
-        """Run a benchmark workload and get results."""
-        # benchmark.sh can take up to 6 minutes per workload
-        result = self.benchmark.run(f"./benchmark.sh agent-test {workload}", timeout=420)
+        """Run a benchmark and get results.
+
+        Note: benchmark.sh always runs ALL workloads regardless of arguments.
+        The workload parameter is used to read the correct result file after.
+        """
+        # benchmark.sh runs all 5 workloads (~5 min total)
+        result = self.benchmark.run(f"./benchmark.sh {self.contestant}", timeout=600)
 
         self.command_history.append({
             "tool": "run_benchmark",

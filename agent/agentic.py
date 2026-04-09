@@ -358,30 +358,36 @@ Start by exploring the system to identify bottlenecks. Use the tools provided.""
         self.messages.append({"role": "assistant", "content": content})
 
     def _run_quick_benchmark(self) -> dict:
-        """Run quick benchmark to get baseline."""
+        """Run baseline benchmark across all workloads (single benchmark.sh invocation)."""
+        import re
+        print(f"   Running all workloads...")
+        result = self.tools.run_benchmark("all")
         results = {}
-        for workload in ["homepage", "small", "medium", "large", "mixed"]:
-            print(f"   Running {workload} benchmark...")
-            result = self.tools.run_benchmark(workload)
-            if result.success:
-                # Parse rps from output
-                import re
-                match = re.search(r"Requests/sec:\s+([\d.]+)", result.output)
+        if result.success:
+            # benchmark.sh runs all 5 workloads and prints per-workload summaries
+            # Parse each "Workload <name> complete:" section
+            for workload in ["homepage", "small", "medium", "large", "mixed"]:
+                pattern = rf"Workload {workload} complete:.*?Requests/sec:\s+([\d.]+)"
+                match = re.search(pattern, result.output, re.DOTALL)
                 if match:
                     results[workload] = float(match.group(1))
                     print(f"   {workload}: {results[workload]:,.0f} rps")
                 else:
-                    print(f"   {workload}: Could not parse Requests/sec from output")
-            else:
-                print(f"   {workload}: Failed - {result.error}")
+                    print(f"   {workload}: Could not parse Requests/sec")
+        else:
+            print(f"   Benchmark failed: {result.error}")
         return results
 
     def _update_current_rps(self, workload: str, output: str):
         """Update current rps from benchmark output."""
         import re
-        match = re.search(r"Requests/sec:\s+([\d.]+)", output)
-        if match and workload:
-            self.state.current_rps[workload] = float(match.group(1))
+        # Parse per-workload results from benchmark.sh output
+        # Each workload ends with "Workload <name> complete:" followed by "Requests/sec: XXXX"
+        for wl in ["homepage", "small", "medium", "large", "mixed"]:
+            pattern = rf"Workload {wl} complete:.*?Requests/sec:\s+([\d.]+)"
+            match = re.search(pattern, output, re.DOTALL)
+            if match:
+                self.state.current_rps[wl] = float(match.group(1))
 
     def get_decision_log(self) -> list:
         """Get the decision log."""
