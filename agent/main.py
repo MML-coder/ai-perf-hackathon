@@ -229,6 +229,7 @@ def main():
             benchmark_host=args.benchmark,
             llm_client=llm,
             max_iterations=args.max_iterations,
+            contestant=args.contestant,
         )
 
         state = runner.run()

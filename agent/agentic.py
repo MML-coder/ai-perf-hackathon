@@ -24,7 +24,7 @@ class AgentState:
 
 SYSTEM_PROMPT = """You are an autonomous performance tuning agent for RHEL/Nginx systems.
 
-GOAL: Improve Nginx performance for small and medium file workloads. Target: >100% improvement on each.
+GOAL: Improve Nginx performance for all workloads (homepage, small, medium, large, mixed). Target: >100% improvement on each.
 
 TUNING ORDER FOR MEDIUM FILES:
 1. First try nginx tunings (open_file_cache, worker_connections, access_log off, etc.)
@@ -145,8 +145,8 @@ CRITICAL BENCHMARK RULES:
 - NEVER use 'ab' (Apache Bench) or 'curl' for performance testing - they give inaccurate results
 - run_benchmark uses 'wrk' via benchmark.sh with proper settings
 - ab gives 50x lower numbers than wrk - DO NOT USE IT
-- Focus on workloads: small, medium
-- For MEDIUM files: Try nginx/kernel tunings first. Only switch to 100G NIC if network-limited.
+- Run all workloads: homepage, small, medium, large, mixed
+- For MEDIUM/LARGE files: Try nginx/kernel tunings first. Only switch to 100G NIC if network-limited.
 
 BENCHMARK OUTPUT FORMAT:
 The run_benchmark tool returns output like this (example for small workload):
@@ -191,10 +191,11 @@ class AgenticRunner:
         llm_client,
         max_iterations: int = 20,
         target_improvement: float = 0.10,
+        contestant: str = "agent-test",
     ):
         self.sut = SSHClient(sut_host)
         self.benchmark = SSHClient(benchmark_host)
-        self.tools = AgentTools(self.sut, self.benchmark)
+        self.tools = AgentTools(self.sut, self.benchmark, contestant=contestant)
         self.llm = llm_client
         self.max_iterations = max_iterations
         self.target_improvement = target_improvement
@@ -359,7 +360,7 @@ Start by exploring the system to identify bottlenecks. Use the tools provided.""
     def _run_quick_benchmark(self) -> dict:
         """Run quick benchmark to get baseline."""
         results = {}
-        for workload in ["small", "medium"]:
+        for workload in ["homepage", "small", "medium", "large", "mixed"]:
             print(f"   Running {workload} benchmark...")
             result = self.tools.run_benchmark(workload)
             if result.success:
