@@ -111,8 +111,8 @@ Available models: sonnet, opus, haiku (or full model IDs)
     parser.add_argument(
         "--max-iterations",
         type=int,
-        default=40,
-        help="Max iterations for agentic mode (default: 40)"
+        default=100,
+        help="Max iterations for agentic mode (default: 100)"
     )
     parser.add_argument(
         "--dry-run", "-n",
