@@ -86,7 +86,8 @@ class AgentTools:
 
     def run_benchmark(self, workload: str = "small") -> ToolResult:
         """Run a benchmark workload and get results."""
-        result = self.benchmark.run(f"./benchmark.sh agent-test {workload}", timeout=120)
+        # benchmark.sh can take up to 6 minutes per workload
+        result = self.benchmark.run(f"./benchmark.sh agent-test {workload}", timeout=420)
 
         self.command_history.append({
             "tool": "run_benchmark",

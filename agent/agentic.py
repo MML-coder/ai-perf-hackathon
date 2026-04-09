@@ -135,10 +135,36 @@ RULES:
 CRITICAL BENCHMARK RULES:
 - ALWAYS use the run_benchmark tool for performance measurement!
 - NEVER use 'ab' (Apache Bench) or 'curl' for performance testing - they give inaccurate results
-- run_benchmark uses 'wrk' with proper settings (16 threads, 300 connections, 60 seconds)
+- run_benchmark uses 'wrk' via benchmark.sh with proper settings
 - ab gives 50x lower numbers than wrk - DO NOT USE IT
 - Focus on workloads: small, medium
 - For MEDIUM files: Try nginx/kernel tunings first. Only switch to 100G NIC if network-limited.
+
+BENCHMARK OUTPUT FORMAT:
+The run_benchmark tool returns output like this (example for small workload):
+```
+=== Running Benchmark: small ===
+Configuration: 16 threads, 1000 connections, 60s
+
+Running 1m test @ http://test-machine/
+  16 threads and 1000 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   500.03us  378.75us  21.90ms   94.23%
+    Req/Sec   117.71k    11.52k  139.65k    91.81%
+  112602805 requests in 1.00m, 31.88GB read
+Requests/sec: 1873590.89    <-- THIS IS THE KEY METRIC
+Transfer/sec:    543.18MB
+
+Workload small complete:
+  Requests/sec: 1873590.89
+  Latency (avg): 500.03us
+```
+Look for "Requests/sec: XXXX" - higher is better. Compare before/after tuning.
+
+Results are also saved as JSON files on the benchmark node:
+  /root/hackathon-results/agent-test_<workload>.json
+You can read these with read_file tool (target=benchmark) for structured data:
+  {"requests_per_sec": 1873590.89, "latency_avg": "500.03us", ...}
 
 When done, call the 'done' tool with a detailed summary including:
 - What bottlenecks were found
@@ -326,6 +352,7 @@ Start by exploring the system to identify bottlenecks. Use the tools provided.""
         """Run quick benchmark to get baseline."""
         results = {}
         for workload in ["small", "medium"]:
+            print(f"   Running {workload} benchmark...")
             result = self.tools.run_benchmark(workload)
             if result.success:
                 # Parse rps from output
@@ -333,6 +360,11 @@ Start by exploring the system to identify bottlenecks. Use the tools provided.""
                 match = re.search(r"Requests/sec:\s+([\d.]+)", result.output)
                 if match:
                     results[workload] = float(match.group(1))
+                    print(f"   {workload}: {results[workload]:,.0f} rps")
+                else:
+                    print(f"   {workload}: Could not parse Requests/sec from output")
+            else:
+                print(f"   {workload}: Failed - {result.error}")
         return results
 
     def _update_current_rps(self, workload: str, output: str):

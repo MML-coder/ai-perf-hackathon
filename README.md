@@ -174,21 +174,31 @@ cat reports/report_*.md
 ### Agent CLI Options
 
 ```bash
+# Agentic mode - fully autonomous (recommended)
+python -m agent --sut <SUT_HOST> --benchmark <BENCHMARK_HOST> --vertex --agentic
+
+# Agentic mode with specific model
+python -m agent --sut <SUT_HOST> --benchmark <BENCHMARK_HOST> --vertex --model sonnet --agentic
+
+# Agentic mode with custom max iterations (default: 500)
+python -m agent --sut <SUT_HOST> --benchmark <BENCHMARK_HOST> --vertex --agentic --max-iterations 100
+
+# Pipeline mode (non-agentic) - single LLM call
+python -m agent --sut <SUT_HOST> --benchmark <BENCHMARK_HOST> --vertex
+
 # Dry run (analyze but don't apply changes)
-python -m agent --sut HOST --benchmark HOST --vertex --dry-run
+python -m agent --sut <SUT_HOST> --benchmark <BENCHMARK_HOST> --vertex --dry-run
 
 # Use a specific model (sonnet, opus, haiku)
-python -m agent --sut HOST --benchmark HOST --vertex --model opus
-
-# Analyze only, no benchmark
-python -m agent --sut HOST --benchmark HOST --dry-run
-
-# Use existing benchmark results
-python -m agent --sut HOST --benchmark HOST --baseline baseline
+python -m agent --sut <SUT_HOST> --benchmark <BENCHMARK_HOST> --vertex --model opus
 
 # Skip benchmarks (faster for testing)
-python -m agent --sut HOST --benchmark HOST --skip-benchmark
+python -m agent --sut <SUT_HOST> --benchmark <BENCHMARK_HOST> --vertex --skip-benchmark
 ```
+
+**Agentic vs Pipeline Mode:**
+- **Agentic** (`--agentic`): Agent autonomously explores, diagnoses, applies tunings, and verifies. Multiple LLM calls. Best for complex issues.
+- **Pipeline**: Single LLM call for analysis, then applies recommendations. Faster and cheaper (~$0.04 vs ~$2-5).
 
 
 ## Documentation
