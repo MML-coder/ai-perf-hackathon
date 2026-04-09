@@ -1,0 +1,133 @@
+{
+  "mode": "manual",
+  "timestamp": "2026-04-09T13:40:00Z",
+  "sut": "d20-h13-000-r650.rdu2.scalelab.redhat.com",
+  "benchmark_node": "d20-h15-000-r650.rdu2.scalelab.redhat.com",
+  "os": "Red Hat Enterprise Linux 9.7 (Plow)",
+  "cpu_cores": 112,
+  "memory_gb": 502,
+  "contestant": "rhelper",
+  "success": true,
+  "baseline": {
+    "nic": "eno12399np0 (25 Gbps)",
+    "nic_ip": "10.1.89.236",
+    "results": {
+      "homepage": {"requests_per_sec": 456356.80, "latency_avg": "2.43ms", "transfer_per_sec": "251.12MB"},
+      "small": {"requests_per_sec": 426670.31, "latency_avg": "2.62ms", "transfer_per_sec": "123.70MB"},
+      "medium": {"requests_per_sec": 1400.40, "latency_avg": "221.86ms", "transfer_per_sec": "2.74GB", "errors": {"timeout": 37}},
+      "large": {"requests_per_sec": 186.11, "latency_avg": "512.19ms", "transfer_per_sec": "2.74GB"},
+      "mixed": {"requests_per_sec": 2229.32, "latency_avg": "125.79ms", "transfer_per_sec": "2.74GB", "errors": {"timeout": 2}}
+    }
+  },
+  "after_tuning": {
+    "nic": "ens2f0np0.103 (100 Gbps)",
+    "nic_ip": "172.23.89.236",
+    "results": {
+      "homepage": {"requests_per_sec": 1306344.86, "latency_avg": "0.88ms", "transfer_per_sec": "718.84MB"},
+      "small": {"requests_per_sec": 2086882.58, "latency_avg": "344.68us", "transfer_per_sec": "605.02MB"},
+      "medium": {"requests_per_sec": 5594.86, "latency_avg": "55.85ms", "transfer_per_sec": "10.93GB"},
+      "large": {"requests_per_sec": 745.38, "latency_avg": "132.15ms", "transfer_per_sec": "10.93GB"},
+      "mixed": {"requests_per_sec": 8946.90, "latency_avg": "30.25ms", "transfer_per_sec": "10.93GB"}
+    }
+  },
+  "improvements": {
+    "homepage": {"before_rps": 456356.80, "after_rps": 1306344.86, "improvement_pct": 186.3},
+    "small": {"before_rps": 426670.31, "after_rps": 2086882.58, "improvement_pct": 389.1},
+    "medium": {"before_rps": 1400.40, "after_rps": 5594.86, "improvement_pct": 299.5},
+    "large": {"before_rps": 186.11, "after_rps": 745.38, "improvement_pct": 300.4},
+    "mixed": {"before_rps": 2229.32, "after_rps": 8946.90, "improvement_pct": 301.3}
+  },
+  "tunings_applied": {
+    "nginx": {
+      "worker_processes": "auto (112)",
+      "worker_rlimit_nofile": 65535,
+      "worker_connections": 16384,
+      "multi_accept": "on",
+      "use": "epoll",
+      "access_log": "off",
+      "sendfile": "on",
+      "tcp_nopush": "on",
+      "tcp_nodelay": "on",
+      "keepalive_requests": 10000,
+      "open_file_cache": "max=10000 inactive=60s",
+      "reuseport": true,
+      "directio": "NOT USED (harmful when data fits in RAM)",
+      "aio_threads": "NOT USED"
+    },
+    "kernel": {
+      "net.core.somaxconn": 65535,
+      "net.core.rmem_max": 67108864,
+      "net.core.wmem_max": 67108864,
+      "net.ipv4.tcp_rmem": "4096 1048576 67108864",
+      "net.ipv4.tcp_wmem": "4096 1048576 67108864",
+      "net.ipv4.tcp_congestion_control": "bbr",
+      "net.core.netdev_max_backlog": 65535,
+      "net.core.busy_poll": 50,
+      "net.ipv4.tcp_fastopen": 3,
+      "vm.swappiness": 1
+    },
+    "nic": {
+      "switched_to": "ens2f0np0.103 (100 Gbps)",
+      "ring_buffers": "rx 8192 tx 8192",
+      "offloads": "gro on, gso on, tso on",
+      "coalescing": "adaptive-rx on, adaptive-tx on",
+      "rps": "enabled"
+    },
+    "nvme": {
+      "scheduler": "none",
+      "read_ahead_kb": 8192
+    },
+    "systemd": {
+      "LimitNOFILE": 65535
+    }
+  },
+  "root_causes": [
+    {
+      "issue": "Wrong NIC after RHEL 9.7 migration",
+      "impact": "4x bandwidth loss (25G vs 100G)",
+      "fix": "Switch benchmark /etc/hosts to 100G NIC IP"
+    },
+    {
+      "issue": "open_file_cache disabled",
+      "impact": "Repeated FD lookups for 2.5M small files",
+      "fix": "open_file_cache max=10000 inactive=60s"
+    },
+    {
+      "issue": "Low file descriptor limits (1024)",
+      "impact": "FD exhaustion under high concurrency",
+      "fix": "worker_rlimit_nofile 65535 + systemd LimitNOFILE"
+    },
+    {
+      "issue": "Access logging enabled at high rps",
+      "impact": "Massive I/O overhead at 1M+ rps",
+      "fix": "access_log off"
+    },
+    {
+      "issue": "No reuseport on listen directive",
+      "impact": "Accept mutex contention across 112 workers",
+      "fix": "listen 80 default_server reuseport"
+    },
+    {
+      "issue": "Default TCP stack (cubic, small buffers)",
+      "impact": "Suboptimal throughput and latency",
+      "fix": "BBR, 64MB buffers, busy_poll, tcp_fastopen"
+    },
+    {
+      "issue": "Low NIC ring buffers (1024)",
+      "impact": "Packet drops under load",
+      "fix": "Ring buffers to max (8192)"
+    }
+  ],
+  "decision_log": [
+    {"action": "Switch to 100G NIC", "reason": "Primary root cause: RHEL 9.7 migration changed default NIC"},
+    {"action": "Enable open_file_cache", "reason": "2.5M small files benefit from FD caching"},
+    {"action": "Increase worker_rlimit_nofile to 65535", "reason": "Prevent FD exhaustion"},
+    {"action": "Increase worker_connections to 16384", "reason": "Higher concurrency headroom"},
+    {"action": "Disable access_log", "reason": "Eliminate I/O overhead at high rps"},
+    {"action": "Add reuseport", "reason": "Eliminate accept mutex across 112 workers"},
+    {"action": "Enable BBR + TCP tuning", "reason": "Better congestion control and buffers"},
+    {"action": "Max NIC ring buffers (8192)", "reason": "Prevent packet drops"},
+    {"action": "NVMe scheduler to none", "reason": "Bypass unnecessary scheduling"},
+    {"action": "NOT use directio/aio", "reason": "Page cache faster when data fits in 502GB RAM"}
+  ]
+}
