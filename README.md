@@ -77,11 +77,26 @@ Customer reports performance degradation in Nginx web server for small and mediu
 
 | Issue | Impact | Fix |
 |-------|--------|-----|
+| **Wrong NIC after RHEL 9.7 migration** | 4x bandwidth loss (25G vs 100G) | Agent auto-switches to fastest NIC |
 | `open_file_cache off` | Small files slow | Enable with max=10000 |
 | `worker_rlimit_nofile 1024` | FD exhaustion | Increase to 65535 |
 | `worker_connections 1024` | Connection limits | Increase to 4096 |
 | Default TCP buffers | Network inefficiency | 64MB buffers + BBR |
-| Network interface selection | 25G vs 100G available | Agent discovers faster NICs |
+
+### Primary Root Cause: NIC Selection Changed During Migration
+
+**Hypothesis**: RHEL 9.7 migration changed the default network interface from 100Gbps to 25Gbps.
+
+**Evidence**:
+- System has both 25G (`eno*`) and 100G (`ens2f*`) NICs
+- After migration, `/etc/hosts` or default route pointed to 25G NIC
+- Medium/large file performance was network-limited at 25G (89% utilization)
+- Switching to 100G NIC doubled medium/large file throughput
+
+**Why this happens**:
+- RHEL 9 uses predictable network interface names (`ens*` vs `eth*`)
+- NetworkManager may pick different "best" interface after upgrade
+- systemd-networkd has different default gateway selection logic
 
 ## Environment
 

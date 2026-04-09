@@ -289,6 +289,36 @@ def main():
         for line in metrics.nginx_config.split("\n")[:20]:
             print(f"  {line}")
 
+    # Step 1.5: Discover and switch to fastest NIC
+    nic_switched = None
+    if not args.skip_benchmark:
+        print_step("Discovering fastest NIC on SUT...")
+        fastest_nic = collector.discover_fastest_nic()
+        if fastest_nic:
+            current_ip = collector.get_current_test_machine_ip()
+            print(f"  Fastest NIC: {fastest_nic['interface']} @ {fastest_nic['speed_mbps']}Mbps (IP: {fastest_nic['ip']})")
+            print(f"  Current test-machine IP: {current_ip}")
+
+            if current_ip != fastest_nic["ip"]:
+                # Find what speed the current IP is on
+                current_speed = None
+                for nic in metrics.nic_info:
+                    if nic.get("ip") == current_ip:
+                        current_speed = nic.get("speed", "unknown")
+                        break
+
+                print(f"\n  *** POTENTIAL ROOT CAUSE DETECTED ***")
+                print(f"  System is using {current_speed} NIC but {fastest_nic['speed_mbps']}Mbps is available!")
+                print(f"  This may explain performance degradation after RHEL 9.7 migration.")
+                print(f"  (Network interface selection may have changed during OS upgrade)\n")
+
+                print_step(f"Switching to faster NIC ({fastest_nic['speed_mbps']}Mbps)...")
+                nic_switched = collector.switch_to_fastest_nic()
+                if nic_switched and nic_switched.get("switched"):
+                    print(f"  Switched: {nic_switched['previous_ip']} -> {fastest_nic['ip']}")
+            else:
+                print(f"  Already using fastest NIC")
+
     # Step 2: Collect baseline benchmark results
     print_header("Step 2: Collecting Baseline Benchmark Results")
 

@@ -213,3 +213,59 @@ done
                 result.errors[error_type] = int(match.group(1))
 
         return result
+
+    def discover_fastest_nic(self) -> Optional[dict]:
+        """Discover the fastest NIC with an IP on the SUT."""
+        cmd_result = self.sut.run("""
+for iface in $(ls /sys/class/net/ | grep -v lo); do
+  speed=$(ethtool $iface 2>/dev/null | grep Speed | awk '{print $2}' | tr -d 'Mb/s')
+  ip=$(ip addr show $iface 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1 | head -1)
+  [ -n "$speed" ] && [ "$speed" != "Unknown!" ] && [ -n "$ip" ] && echo "$speed|$iface|$ip"
+done | sort -rn | head -1
+""")
+        if cmd_result.success and cmd_result.stdout.strip():
+            parts = cmd_result.stdout.strip().split("|")
+            if len(parts) == 3:
+                return {
+                    "speed_mbps": int(parts[0]),
+                    "interface": parts[1],
+                    "ip": parts[2]
+                }
+        return None
+
+    def get_current_test_machine_ip(self) -> Optional[str]:
+        """Get current test-machine IP from benchmark node's /etc/hosts."""
+        cmd_result = self.benchmark.run("grep 'test-machine' /etc/hosts | grep -v '^#' | awk '{print $1}' | head -1")
+        if cmd_result.success and cmd_result.stdout.strip():
+            return cmd_result.stdout.strip()
+        return None
+
+    def switch_to_fastest_nic(self) -> Optional[dict]:
+        """Switch benchmark node to use fastest NIC on SUT. Returns NIC info or None."""
+        fastest = self.discover_fastest_nic()
+        if not fastest:
+            return None
+
+        current_ip = self.get_current_test_machine_ip()
+        if current_ip == fastest["ip"]:
+            # Already using fastest
+            return {"switched": False, "nic": fastest, "previous_ip": current_ip}
+
+        # Backup and update /etc/hosts
+        self.benchmark.run("cp /etc/hosts /etc/hosts.bak")
+
+        # Comment out old test-machine entries and add new one
+        cmd = f"""
+sed -i 's/^\\([^#].*test-machine\\)/#\\1/' /etc/hosts
+echo '{fastest["ip"]} test-machine' >> /etc/hosts
+"""
+        cmd_result = self.benchmark.run(cmd)
+
+        if cmd_result.success:
+            return {"switched": True, "nic": fastest, "previous_ip": current_ip}
+        return None
+
+    def restore_original_nic(self) -> bool:
+        """Restore original /etc/hosts on benchmark node."""
+        cmd_result = self.benchmark.run("[ -f /etc/hosts.bak ] && cp /etc/hosts.bak /etc/hosts")
+        return cmd_result.success
