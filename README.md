@@ -144,24 +144,6 @@ python -m agent --sut HOST --benchmark HOST --baseline baseline
 python -m agent --sut HOST --benchmark HOST --skip-benchmark
 ```
 
-### Manual Workflow (Alternative)
-
-```bash
-# 1. SSH to benchmark node
-ssh root@e40-h37-000-r650.rdu2.scalelab.redhat.com
-
-# 2. Run baseline benchmark
-./benchmark.sh baseline
-
-# 3. SSH to DUT (from benchmark node or directly)
-ssh root@e40-h34-000-r650.rdu2.scalelab.redhat.com
-
-# 4. Apply tunings (see docs/TUNING_PLAYBOOK.md)
-
-# 5. Re-run benchmark and compare
-./benchmark.sh after-tuning
-./compare-results.sh after-tuning
-```
 
 ## Documentation
 
@@ -309,5 +291,5 @@ ai-perf-hackathon/
 
 ## Team
 
-- Hackathon Team: PSAP
+- Hackathon Team: rhelper (psap)
 - Repository: [GitHub](https://github.com/MML-coder/ai-perf-hackathon)
