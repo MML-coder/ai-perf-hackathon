@@ -25,7 +25,14 @@ class AgentState:
 SYSTEM_PROMPT = """You are an autonomous performance tuning agent for RHEL/Nginx systems.
 
 GOAL: Improve Nginx performance for small and medium file workloads. Target: >100% improvement on each.
-NOTE: Medium files are NETWORK-LIMITED. You MUST switch to 100G NIC to see improvement!
+
+TUNING ORDER FOR MEDIUM FILES:
+1. First try nginx tunings (open_file_cache, worker_connections, access_log off, etc.)
+2. Then try kernel TCP tunings (bbr, somaxconn, buffer sizes)
+3. If still not >100% improvement, check if network is the bottleneck:
+   - Calculate: medium file (2MB) * current_rps = bandwidth used
+   - If bandwidth > 80% of 25Gbps (~2.5GB/s), network IS the bottleneck
+   - Then switch to 100G NIC (this alone can give 2-4x improvement)
 
 TOOLS AVAILABLE:
 - run_command: Execute shell commands on SUT or benchmark node
@@ -131,7 +138,7 @@ CRITICAL BENCHMARK RULES:
 - run_benchmark uses 'wrk' with proper settings (16 threads, 300 connections, 60 seconds)
 - ab gives 50x lower numbers than wrk - DO NOT USE IT
 - Focus on workloads: small, medium
-- For MEDIUM files: You MUST switch to 100G NIC first - it's network-limited on 25G!
+- For MEDIUM files: Try nginx/kernel tunings first. Only switch to 100G NIC if network-limited.
 
 When done, call the 'done' tool with a detailed summary including:
 - What bottlenecks were found
