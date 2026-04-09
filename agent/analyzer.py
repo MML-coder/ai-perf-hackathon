@@ -98,27 +98,32 @@ Response format:
 CRITICAL HIGH-IMPACT NGINX SETTINGS (always recommend these):
 1. access_log off - CRITICAL! At 1M+ rps, logging causes massive I/O overhead. Always disable.
 2. worker_rlimit_nofile 65535 - Allow workers to open many files
-3. worker_connections 4096 - Increase concurrent connections
+3. worker_connections 16384 - High concurrent connections per worker
 4. open_file_cache max=10000 inactive=60s - Cache file descriptors
 5. keepalive_requests 10000 - Reuse connections (default 100 is too low)
-6. aio threads - Async I/O for better throughput
-7. directio 512k - Direct I/O for large files
-8. sendfile_max_chunk 2m - Optimize sendfile for medium files
-9. output_buffers 4 2m - Better buffering for responses
-10. use epoll + multi_accept on - Linux-optimized event handling
+6. sendfile on + tcp_nopush on + tcp_nodelay on - Optimal for page cache serving
+7. use epoll + multi_accept on - Linux-optimized event handling
+8. reuseport on listen directive - Eliminates accept mutex contention across workers
+9. sendfile_max_chunk 2m - Optimize sendfile for medium files
+10. output_buffers 4 2m - Better buffering for responses
+
+WARNING - DO NOT USE these settings:
+- directio: Forces disk I/O even when data fits in page cache (RAM). Causes ~50% degradation on medium/large files when total data size < available memory. Only useful when dataset >> RAM.
+- aio threads: Only useful with directio. Without directio, sendfile + page cache is faster.
 
 Key tuning areas to check:
-1. Nginx: ALL settings above, plus sendfile, tcp_nopush, tcp_nodelay
-2. Kernel: net.core.somaxconn=65535, net.core.rmem_max/wmem_max=67108864, tcp_congestion_control=bbr
+1. Nginx: ALL settings above, plus reuseport on listen directives
+2. Kernel: net.core.somaxconn=65535, net.core.rmem_max/wmem_max=67108864, tcp_congestion_control=bbr, net.core.busy_poll=50, net.ipv4.tcp_fastopen=3
 3. File limits: systemd LimitNOFILE=65535
 4. Disk: I/O scheduler (none for NVMe)
-5. Network: Check for faster NICs (100G vs 25G)
+5. Network: Check for faster NICs (100G vs 25G), ring buffers to max (8192), RPS enabled
+6. NIC tuning: ethtool -G <iface> rx 8192 tx 8192, ethtool -K <iface> gro on gso on tso on, ethtool -C <iface> adaptive-rx on adaptive-tx on
 
 IMPORTANT - Command format guidelines:
 - For kernel params: Use "sysctl -w param=value" (NOT echo >> /etc/sysctl.conf)
 - For nginx config: Use sed to modify /etc/nginx/nginx.conf. Examples:
   - sed -i 's/access_log.*/access_log off;/' /etc/nginx/nginx.conf
-  - sed -i '/http {/a\\    aio threads;' /etc/nginx/nginx.conf
+  - sed -i 's/listen\s\+80;/listen 80 reuseport;/' /etc/nginx/nginx.conf
 - For disk scheduler: Use "echo none > /sys/block/nvme0n1/queue/scheduler"
 - After nginx changes, config will be tested and reloaded automatically
 
