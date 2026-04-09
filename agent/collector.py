@@ -146,27 +146,13 @@ done
 
         return metrics
 
-    def run_benchmark(self, workload: str, contestant: str = "agent") -> Optional[BenchmarkResult]:
-        """Run a specific benchmark workload."""
-        # Check if benchmark script exists
-        result = self.benchmark.run(f"./benchmark.sh {contestant} {workload}", timeout=120)
-
-        if not result.success:
-            return None
-
-        return self._parse_benchmark_output(workload, result.stdout)
-
     def run_all_benchmarks(self, contestant: str = "agent") -> list[BenchmarkResult]:
-        """Run all benchmark workloads."""
-        workloads = ["homepage", "small", "medium", "large", "mixed"]
-        results = []
+        """Run all benchmark workloads using benchmark.sh and return results."""
+        # Run the full benchmark script (runs all 5 workloads, ~5 min)
+        result = self.benchmark.run(f"./benchmark.sh {contestant}", timeout=420)
 
-        for workload in workloads:
-            result = self.run_benchmark(workload, contestant)
-            if result:
-                results.append(result)
-
-        return results
+        # Get results from saved JSON files (benchmark.sh saves them)
+        return self.get_latest_results(contestant)
 
     def get_latest_results(self, contestant: str) -> list[BenchmarkResult]:
         """Get latest benchmark results for a contestant."""
