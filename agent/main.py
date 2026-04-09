@@ -233,20 +233,47 @@ def main():
 
         state = runner.run()
 
-        print_header("Agent Complete")
-        print(f"Success: {state.success}")
-        print(f"Iterations: {state.iteration}")
-        print(f"Summary: {state.summary}")
+        # Print formatted summary
+        print_header("Agentic Run Summary")
 
-        print("\nBaseline RPS:", state.baseline_rps)
-        print("Final RPS:", state.current_rps)
+        status_icon = "✅" if state.success else "❌"
+        print(f"Status: {status_icon} {'Success' if state.success else 'Failed'} (finished at iteration {state.iteration}/{args.max_iterations})")
 
-        print("\nToken Usage:")
+        # Get token usage
+        usage = llm.get_total_usage()
+        total_tokens = sum(u.get('input_tokens', 0) + u.get('output_tokens', 0) for u in usage)
+        total_cost = sum(u.get('cost_usd', 0) for u in usage)
+        total_calls = sum(u.get('api_calls', 0) for u in usage)
+        print(f"Cost: ${total_cost:.2f} ({total_tokens:,} tokens, {total_calls} API calls)")
+
+        # Performance comparison if we have data
+        if state.baseline_rps and state.current_rps:
+            print("\n=== Performance Results ===\n")
+            print(f"{'Workload':<12} | {'Baseline':>15} | {'After':>15} | {'Change':>12} | {'Status':<10}")
+            print("-" * 75)
+            for workload in state.baseline_rps:
+                if workload in state.current_rps:
+                    before = state.baseline_rps[workload]
+                    after = state.current_rps[workload]
+                    if before > 0:
+                        pct = ((after - before) / before) * 100
+                        sign = "+" if pct >= 0 else ""
+                        status = "IMPROVED" if pct > 10 else ("DEGRADED" if pct < -10 else "STABLE")
+                        print(f"{workload:<12} | {before:>15,.0f} | {after:>15,.0f} | {sign}{pct:>10.1f}% | {status:<10}")
+
+        # Print summary from agent
+        if state.summary:
+            print("\n=== Agent Summary ===\n")
+            # Print first 2000 chars of summary to avoid overwhelming output
+            summary_preview = state.summary[:2000]
+            if len(state.summary) > 2000:
+                summary_preview += "\n... (truncated, see full report)"
+            print(summary_preview)
+
+        print("\n=== Token Usage ===")
         print(llm.get_usage_report())
 
-        print("\nDecision Log:")
-        for entry in runner.get_decision_log():
-            print(f"  [{entry['iteration']}] {entry['tool']}: {entry.get('inputs', {})}")
+        print(f"\nDecision Log: {len(runner.get_decision_log())} actions taken")
 
         # Save report
         output_dir = Path(args.output)
