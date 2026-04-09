@@ -224,7 +224,7 @@ class Reporter:
             "hostname": report.baseline_metrics.hostname,
             "summary": report.analysis.summary,
             "improvements": report.calculate_improvements(),
-            "bottlenecks": report.analysis.bottlenecks,
+            "bottlenecks": [b.to_dict() for b in report.analysis.bottlenecks],
             "recommendations": [r.to_dict() for r in report.analysis.recommendations],
             "actions": [a.to_dict() for a in report.actions_taken],
             "token_usage": report.token_usage,

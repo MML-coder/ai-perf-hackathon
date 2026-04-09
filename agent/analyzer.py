@@ -102,6 +102,12 @@ Key tuning areas to check:
 4. Disk: I/O scheduler (none for NVMe), read-ahead
 5. Network: Check for faster NICs, ring buffers, NIC queues
 
+IMPORTANT - Command format guidelines:
+- For kernel params: Use "sysctl -w param=value" (NOT echo >> /etc/sysctl.conf)
+- For nginx config: Use sed to modify /etc/nginx/nginx.conf
+- For disk scheduler: Use "echo none > /sys/block/nvme0n1/queue/scheduler"
+- After nginx changes, config will be tested and reloaded automatically
+
 Focus on high-impact changes first. Be specific with values and commands."""
 
 
