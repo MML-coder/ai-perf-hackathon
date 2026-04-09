@@ -333,8 +333,14 @@ def main():
 
     print(f"\nSummary: {analysis.summary}")
     print(f"\nBottlenecks Identified ({len(analysis.bottlenecks)}):")
-    for bottleneck in analysis.bottlenecks:
-        print(f"  - {bottleneck}")
+    for i, b in enumerate(analysis.bottlenecks, 1):
+        print(f"\n  {i}. {b.issue}")
+        if b.current_state:
+            print(f"     Current: {b.current_state}")
+        if b.why_problem:
+            print(f"     Why: {b.why_problem}")
+        if b.expected_impact:
+            print(f"     Impact: {b.expected_impact}")
 
     print(f"\nRecommendations ({len(analysis.recommendations)}):")
     for rec in analysis.recommendations:

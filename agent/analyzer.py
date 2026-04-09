@@ -33,17 +33,34 @@ class TuningRecommendation:
 
 
 @dataclass
+class Bottleneck:
+    """A performance bottleneck with detailed explanation."""
+    issue: str
+    current_state: str
+    why_problem: str
+    expected_impact: str
+
+    def to_dict(self) -> dict:
+        return {
+            "issue": self.issue,
+            "current_state": self.current_state,
+            "why_problem": self.why_problem,
+            "expected_impact": self.expected_impact,
+        }
+
+
+@dataclass
 class AnalysisResult:
     """Result of RCA analysis."""
     summary: str
-    bottlenecks: list[str]
+    bottlenecks: list[Bottleneck]
     recommendations: list[TuningRecommendation]
     raw_response: str = ""
 
     def to_dict(self) -> dict:
         return {
             "summary": self.summary,
-            "bottlenecks": self.bottlenecks,
+            "bottlenecks": [b.to_dict() for b in self.bottlenecks],
             "recommendations": [r.to_dict() for r in self.recommendations],
         }
 
@@ -57,7 +74,14 @@ IMPORTANT: Respond in valid JSON format only. No markdown, no explanations outsi
 Response format:
 {
   "summary": "Brief summary of findings",
-  "bottlenecks": ["bottleneck1", "bottleneck2"],
+  "bottlenecks": [
+    {
+      "issue": "Short description of the bottleneck",
+      "current_state": "Current value/configuration observed",
+      "why_problem": "Technical explanation of why this causes performance issues",
+      "expected_impact": "What performance impact this has (e.g., limits connections, causes errors)"
+    }
+  ],
   "recommendations": [
     {
       "category": "nginx|kernel|disk|network",
@@ -203,9 +227,28 @@ class Analyzer:
                     command=rec.get("command", ""),
                 ))
 
+            # Parse bottlenecks with detailed info
+            bottlenecks = []
+            for b in data.get("bottlenecks", []):
+                if isinstance(b, dict):
+                    bottlenecks.append(Bottleneck(
+                        issue=b.get("issue", ""),
+                        current_state=b.get("current_state", ""),
+                        why_problem=b.get("why_problem", ""),
+                        expected_impact=b.get("expected_impact", ""),
+                    ))
+                else:
+                    # Handle old string format
+                    bottlenecks.append(Bottleneck(
+                        issue=str(b),
+                        current_state="",
+                        why_problem="",
+                        expected_impact="",
+                    ))
+
             return AnalysisResult(
                 summary=data.get("summary", ""),
-                bottlenecks=data.get("bottlenecks", []),
+                bottlenecks=bottlenecks,
                 recommendations=recommendations,
                 raw_response=response.content,
             )
