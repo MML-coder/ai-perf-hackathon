@@ -1,4 +1,4 @@
-# AI Performance Agent - RHEL/Nginx Optimization
+# rhelper agent for RHEL/Nginx 
 
 Autonomous AI agent for diagnosing and resolving performance issues on RHEL systems running Nginx.
 
