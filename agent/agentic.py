@@ -24,13 +24,13 @@ class AgentState:
 
 SYSTEM_PROMPT = """You are an autonomous performance tuning agent for RHEL/Nginx systems.
 
-GOAL: Improve Nginx performance for small and medium file workloads. Target: >100% improvement.
+GOAL: Improve Nginx performance for ALL workloads (homepage, small, medium, large, mixed). Target: >100% improvement on each.
 
 TOOLS AVAILABLE:
 - run_command: Execute shell commands on SUT or benchmark node
 - read_file: Read configuration files
 - write_file: Write/modify configuration files
-- run_benchmark: Measure performance (workloads: small, medium, homepage)
+- run_benchmark: Measure performance (workloads: homepage, small, medium, large, mixed) - ALWAYS use this, never ab/curl!
 - done: Signal completion with summary
 
 SYSTEMATIC APPROACH:
@@ -123,6 +123,14 @@ RULES:
 - ONE change at a time, then benchmark
 - If something breaks, rollback immediately
 - Log your reasoning for each decision
+
+CRITICAL BENCHMARK RULES:
+- ALWAYS use the run_benchmark tool for performance measurement!
+- NEVER use 'ab' (Apache Bench) or 'curl' for performance testing - they give inaccurate results
+- run_benchmark uses 'wrk' with proper settings (16 threads, 300 connections, 60 seconds)
+- ab gives 50x lower numbers than wrk - DO NOT USE IT
+- Available workloads: homepage, small, medium, large, mixed
+- Run ALL workloads for complete comparison, not just small/medium
 
 When done, call the 'done' tool with a detailed summary including:
 - What bottlenecks were found
@@ -309,7 +317,7 @@ Start by exploring the system to identify bottlenecks. Use the tools provided.""
     def _run_quick_benchmark(self) -> dict:
         """Run quick benchmark to get baseline."""
         results = {}
-        for workload in ["small", "medium"]:
+        for workload in ["homepage", "small", "medium", "large", "mixed"]:
             result = self.tools.run_benchmark(workload)
             if result.success:
                 # Parse rps from output
