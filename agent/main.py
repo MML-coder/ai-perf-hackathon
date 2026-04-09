@@ -418,15 +418,31 @@ def main():
     # Print summary
     print_header("Summary")
 
-    print("Token Usage:")
-    print(llm.get_usage_report())
-
     if baseline_results and after_results and not args.dry_run:
-        print("\nPerformance Improvements:")
+        print("=== Performance Comparison ===\n")
+        print(f"{'Workload':<12} | {'Baseline (rps)':>15} | {'After (rps)':>15} | {'Change':>12} | {'Status':<10}")
+        print("-" * 75)
+
         improvements = report.calculate_improvements()
         for imp in improvements:
-            sign = "+" if imp["improvement_pct"] >= 0 else ""
-            print(f"  {imp['workload']}: {imp['before_rps']:,.0f} -> {imp['after_rps']:,.0f} rps ({sign}{imp['improvement_pct']}%)")
+            pct = imp["improvement_pct"]
+            if pct > 10:
+                status = "IMPROVED"
+            elif pct < -10:
+                status = "DEGRADED"
+            else:
+                status = "STABLE"
+
+            sign = "+" if pct >= 0 else ""
+            print(f"{imp['workload']:<12} | {imp['before_rps']:>15,.0f} | {imp['after_rps']:>15,.0f} | {sign}{pct:>10.1f}% | {status:<10}")
+
+        print("\nLegend:")
+        print("  IMPROVED  - More than 10% improvement")
+        print("  STABLE    - Within +/-10%")
+        print("  DEGRADED  - More than 10% degradation")
+
+    print("\nToken Usage:")
+    print(llm.get_usage_report())
 
     print("\nAgent run complete.")
 
