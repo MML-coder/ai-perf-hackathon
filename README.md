@@ -113,9 +113,36 @@ Customer reports performance degradation in Nginx web server for small and mediu
 
 ### Prerequisites
 
+#### Local Machine
 - Python 3.10+
-- SSH access to SUT and benchmark nodes
-- Google Cloud Vertex AI access (for Claude API)
+- `anthropic` package: `pip install anthropic`
+- Google Cloud Vertex AI access (or Anthropic API key)
+
+#### SSH Access Setup
+```bash
+# 1. Copy your SSH key to both hosts (example hosts shown)
+ssh-copy-id root@e26-h23-000-r650.rdu2.scalelab.redhat.com  # SUT
+ssh-copy-id root@e40-h33-000-r650.rdu2.scalelab.redhat.com  # Benchmark
+
+# 2. Accept host keys
+ssh-keyscan e26-h23-000-r650.rdu2.scalelab.redhat.com >> ~/.ssh/known_hosts
+ssh-keyscan e40-h33-000-r650.rdu2.scalelab.redhat.com >> ~/.ssh/known_hosts
+
+# 3. Verify passwordless access works
+ssh root@e26-h23-000-r650.rdu2.scalelab.redhat.com 'hostname'
+ssh root@e40-h33-000-r650.rdu2.scalelab.redhat.com 'hostname'
+```
+
+#### SUT (Nginx Server) Requirements
+- RHEL 9.x with Nginx installed and running
+- Root SSH access (agent modifies nginx.conf, runs sysctl)
+- Static files being served by Nginx
+
+#### Benchmark Node Requirements
+- `wrk` installed: `dnf install -y wrk`
+- `~/benchmark.sh` script (runs wrk workloads)
+- `~/hackathon-tools/*.lua` workload scripts
+- `/etc/hosts` entry: `<SUT-IP> test-machine`
 
 ### Vertex AI Setup
 
