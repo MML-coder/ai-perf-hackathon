@@ -95,16 +95,30 @@ Response format:
   ]
 }
 
+CRITICAL HIGH-IMPACT NGINX SETTINGS (always recommend these):
+1. access_log off - CRITICAL! At 1M+ rps, logging causes massive I/O overhead. Always disable.
+2. worker_rlimit_nofile 65535 - Allow workers to open many files
+3. worker_connections 4096 - Increase concurrent connections
+4. open_file_cache max=10000 inactive=60s - Cache file descriptors
+5. keepalive_requests 10000 - Reuse connections (default 100 is too low)
+6. aio threads - Async I/O for better throughput
+7. directio 512k - Direct I/O for large files
+8. sendfile_max_chunk 2m - Optimize sendfile for medium files
+9. output_buffers 4 2m - Better buffering for responses
+10. use epoll + multi_accept on - Linux-optimized event handling
+
 Key tuning areas to check:
-1. Nginx: worker_processes, worker_connections, open_file_cache, sendfile, tcp_nopush, tcp_nodelay, worker_rlimit_nofile
-2. Kernel: net.core.somaxconn, net.core.rmem_max/wmem_max, tcp_congestion_control (bbr)
-3. File limits: ulimit, systemd LimitNOFILE
-4. Disk: I/O scheduler (none for NVMe), read-ahead
-5. Network: Check for faster NICs, ring buffers, NIC queues
+1. Nginx: ALL settings above, plus sendfile, tcp_nopush, tcp_nodelay
+2. Kernel: net.core.somaxconn=65535, net.core.rmem_max/wmem_max=67108864, tcp_congestion_control=bbr
+3. File limits: systemd LimitNOFILE=65535
+4. Disk: I/O scheduler (none for NVMe)
+5. Network: Check for faster NICs (100G vs 25G)
 
 IMPORTANT - Command format guidelines:
 - For kernel params: Use "sysctl -w param=value" (NOT echo >> /etc/sysctl.conf)
-- For nginx config: Use sed to modify /etc/nginx/nginx.conf
+- For nginx config: Use sed to modify /etc/nginx/nginx.conf. Examples:
+  - sed -i 's/access_log.*/access_log off;/' /etc/nginx/nginx.conf
+  - sed -i '/http {/a\\    aio threads;' /etc/nginx/nginx.conf
 - For disk scheduler: Use "echo none > /sys/block/nvme0n1/queue/scheduler"
 - After nginx changes, config will be tested and reloaded automatically
 
