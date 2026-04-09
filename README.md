@@ -2,7 +2,7 @@
 
 Autonomous AI agent for diagnosing and resolving performance issues on RHEL systems running Nginx.
 
-## Get Started in 20 Seconds
+## Get Started
 
 ```bash
 # 1. Clone and install
