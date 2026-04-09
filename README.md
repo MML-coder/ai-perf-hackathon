@@ -63,15 +63,19 @@ Customer reports performance degradation in Nginx web server for small and mediu
 
 ## Final Results
 
+**Agent Run**: `reports/report_20260409_020608.md`
+
 | Workload | Baseline (rps) | After Tuning (rps) | Improvement |
 |----------|----------------|--------------------| ------------|
-| homepage | 384,035 | 1,551,797 | **+304%** |
-| small | 383,354 | 1,860,360 | **+385%** |
-| medium | 1,401 | 2,921 | **+108%** |
-| large | 186 | 394 | **+111%** |
-| mixed | 2,265 | 4,751 | **+110%** |
+| homepage | 383,656 | 1,553,017 | **+305%** |
+| small | 369,756 | 1,917,031 | **+419%** |
+| medium | 1,400 | 2,925 | **+109%** |
+| large | 186 | 398 | **+114%** |
+| mixed | 2,244 | 4,802 | **+114%** |
 
 **All workloads improved >100%!**
+
+**Token Usage**: 4,013 tokens | **Cost**: $0.04 | **Model**: claude-sonnet-4
 
 ## Root Causes Identified
 

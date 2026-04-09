@@ -1,0 +1,504 @@
+{
+  "timestamp": "2026-04-09T02:06:08.971771",
+  "hostname": "e40-h34-000-r650.rdu2.scalelab.redhat.com",
+  "summary": "System shows severe network bottleneck due to using 25Gbps interface instead of 100Gbps, plus multiple Nginx misconfigurations limiting high-RPS performance. Access logging at 380K+ RPS is causing massive I/O overhead, and worker connections are severely limited.",
+  "improvements": [
+    {
+      "workload": "homepage",
+      "before_rps": 383656.36,
+      "after_rps": 1553016.51,
+      "improvement_pct": 304.8
+    },
+    {
+      "workload": "small",
+      "before_rps": 369756.0,
+      "after_rps": 1917031.18,
+      "improvement_pct": 418.5
+    },
+    {
+      "workload": "medium",
+      "before_rps": 1400.27,
+      "after_rps": 2924.63,
+      "improvement_pct": 108.9
+    },
+    {
+      "workload": "large",
+      "before_rps": 186.21,
+      "after_rps": 398.34,
+      "improvement_pct": 113.9
+    },
+    {
+      "workload": "mixed",
+      "before_rps": 2244.24,
+      "after_rps": 4801.69,
+      "improvement_pct": 114.0
+    }
+  ],
+  "bottlenecks": [
+    {
+      "issue": "Using 25Gbps network interface instead of 100Gbps",
+      "current_state": "Traffic routed through 10.1.90.86 (25000Mb/s) instead of 172.24.90.86 (100000Mb/s)",
+      "why_problem": "Network bandwidth is primary bottleneck for medium/large files. 25Gbps limits throughput to ~3GB/s while 100Gbps allows ~12GB/s",
+      "expected_impact": "Medium files limited to 1400 RPS (should be 4000+), large files at 186 RPS (should be 600+)"
+    },
+    {
+      "issue": "Access logging enabled at high RPS",
+      "current_state": "access_log /var/log/nginx/access.log main",
+      "why_problem": "At 380K+ RPS, writing every request to disk creates massive I/O bottleneck, consuming CPU and disk bandwidth",
+      "expected_impact": "Reduces RPS by 20-40% and increases latency significantly"
+    },
+    {
+      "issue": "Worker connections too low",
+      "current_state": "worker_connections 1024",
+      "why_problem": "With 112 workers, total capacity is only 114K connections. At high RPS with keepalive, this limits concurrent processing",
+      "expected_impact": "Connection exhaustion under load, limits scalability"
+    },
+    {
+      "issue": "Missing critical performance optimizations",
+      "current_state": "No file caching, low keepalive_requests, no async I/O",
+      "why_problem": "Default Nginx config not optimized for high-performance scenarios. Missing aio, file caching, and connection reuse optimizations",
+      "expected_impact": "Higher CPU usage, more syscalls, reduced throughput"
+    },
+    {
+      "issue": "Kernel network buffers too small",
+      "current_state": "rmem_max=212992, wmem_max=212992 (208KB)",
+      "why_problem": "Network buffers are too small for high-bandwidth transfers, causing packet drops and retransmissions",
+      "expected_impact": "Reduced throughput on medium/large file transfers"
+    }
+  ],
+  "recommendations": [
+    {
+      "category": "network",
+      "setting": "primary_interface",
+      "current_value": "10.1.90.86 (25Gbps)",
+      "recommended_value": "172.24.90.86 (100Gbps)",
+      "reason": "4x network bandwidth increase will dramatically improve medium/large file performance",
+      "impact": "high",
+      "command": "Route traffic to 100Gbps interface - consult network team for routing changes"
+    },
+    {
+      "category": "nginx",
+      "setting": "access_log",
+      "current_value": "access_log /var/log/nginx/access.log main",
+      "recommended_value": "access_log off",
+      "reason": "Eliminates massive I/O overhead at high RPS",
+      "impact": "high",
+      "command": "sed -i 's/access_log.*/access_log off;/' /etc/nginx/nginx.conf"
+    },
+    {
+      "category": "nginx",
+      "setting": "worker_connections",
+      "current_value": "1024",
+      "recommended_value": "4096",
+      "reason": "Increases concurrent connection capacity from 114K to 458K",
+      "impact": "high",
+      "command": "sed -i 's/worker_connections.*/    worker_connections 4096;/' /etc/nginx/nginx.conf"
+    },
+    {
+      "category": "nginx",
+      "setting": "worker_rlimit_nofile",
+      "current_value": "not set",
+      "recommended_value": "65535",
+      "reason": "Allows workers to open many file descriptors for high concurrency",
+      "impact": "high",
+      "command": "sed -i '/worker_processes/a worker_rlimit_nofile 65535;' /etc/nginx/nginx.conf"
+    },
+    {
+      "category": "nginx",
+      "setting": "aio",
+      "current_value": "not set",
+      "recommended_value": "threads",
+      "reason": "Enables async I/O for better throughput on medium/large files",
+      "impact": "high",
+      "command": "sed -i '/http {/a\\    aio threads;' /etc/nginx/nginx.conf"
+    },
+    {
+      "category": "nginx",
+      "setting": "open_file_cache",
+      "current_value": "not set",
+      "recommended_value": "max=10000 inactive=60s",
+      "reason": "Caches file descriptors to reduce open/close syscalls",
+      "impact": "medium",
+      "command": "sed -i '/http {/a\\    open_file_cache max=10000 inactive=60s;' /etc/nginx/nginx.conf"
+    },
+    {
+      "category": "nginx",
+      "setting": "keepalive_requests",
+      "current_value": "not set (default 100)",
+      "recommended_value": "10000",
+      "reason": "Increases connection reuse, reducing connection overhead",
+      "impact": "medium",
+      "command": "sed -i '/keepalive_timeout/a\\    keepalive_requests 10000;' /etc/nginx/nginx.conf"
+    },
+    {
+      "category": "nginx",
+      "setting": "directio",
+      "current_value": "not set",
+      "recommended_value": "512k",
+      "reason": "Bypasses page cache for large files, improving memory efficiency",
+      "impact": "medium",
+      "command": "sed -i '/http {/a\\    directio 512k;' /etc/nginx/nginx.conf"
+    },
+    {
+      "category": "nginx",
+      "setting": "sendfile_max_chunk",
+      "current_value": "not set",
+      "recommended_value": "2m",
+      "reason": "Optimizes sendfile for medium-sized files",
+      "impact": "medium",
+      "command": "sed -i '/sendfile/a\\    sendfile_max_chunk 2m;' /etc/nginx/nginx.conf"
+    },
+    {
+      "category": "nginx",
+      "setting": "output_buffers",
+      "current_value": "not set",
+      "recommended_value": "4 2m",
+      "reason": "Improves response buffering for medium files",
+      "impact": "medium",
+      "command": "sed -i '/http {/a\\    output_buffers 4 2m;' /etc/nginx/nginx.conf"
+    },
+    {
+      "category": "kernel",
+      "setting": "net.core.somaxconn",
+      "current_value": "4096",
+      "recommended_value": "65535",
+      "reason": "Increases listen queue size for high connection rates",
+      "impact": "high",
+      "command": "sysctl -w net.core.somaxconn=65535"
+    },
+    {
+      "category": "kernel",
+      "setting": "net.core.rmem_max",
+      "current_value": "212992",
+      "recommended_value": "67108864",
+      "reason": "Increases receive buffer size for high-bandwidth transfers",
+      "impact": "high",
+      "command": "sysctl -w net.core.rmem_max=67108864"
+    },
+    {
+      "category": "kernel",
+      "setting": "net.core.wmem_max",
+      "current_value": "212992",
+      "recommended_value": "67108864",
+      "reason": "Increases send buffer size for high-bandwidth transfers",
+      "impact": "high",
+      "command": "sysctl -w net.core.wmem_max=67108864"
+    },
+    {
+      "category": "kernel",
+      "setting": "net.ipv4.tcp_congestion_control",
+      "current_value": "cubic",
+      "recommended_value": "bbr",
+      "reason": "BBR provides better throughput and lower latency than cubic",
+      "impact": "medium",
+      "command": "sysctl -w net.ipv4.tcp_congestion_control=bbr"
+    }
+  ],
+  "actions": [
+    {
+      "timestamp": "2026-04-09T02:00:55.698296",
+      "category": "network",
+      "setting": "primary_interface",
+      "command": "Route traffic to 100Gbps interface - consult network team for routing changes",
+      "success": false,
+      "output": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\nbash: line 1: Route: command not found\n",
+      "rollback_command": null
+    },
+    {
+      "timestamp": "2026-04-09T02:00:56.292165",
+      "category": "nginx",
+      "setting": "access_log",
+      "command": "sed -i 's/access_log.*/access_log off;/' /etc/nginx/nginx.conf",
+      "success": true,
+      "output": "",
+      "rollback_command": "cp /etc/nginx/nginx.conf.backup /etc/nginx/nginx.conf && nginx -s reload"
+    },
+    {
+      "timestamp": "2026-04-09T02:00:58.076256",
+      "category": "nginx",
+      "setting": "worker_connections",
+      "command": "sed -i 's/worker_connections.*/    worker_connections 4096;/' /etc/nginx/nginx.conf",
+      "success": true,
+      "output": "",
+      "rollback_command": "cp /etc/nginx/nginx.conf.backup /etc/nginx/nginx.conf && nginx -s reload"
+    },
+    {
+      "timestamp": "2026-04-09T02:00:59.864055",
+      "category": "nginx",
+      "setting": "worker_rlimit_nofile",
+      "command": "sed -i '/worker_processes/a worker_rlimit_nofile 65535;' /etc/nginx/nginx.conf",
+      "success": true,
+      "output": "",
+      "rollback_command": "cp /etc/nginx/nginx.conf.backup /etc/nginx/nginx.conf && nginx -s reload"
+    },
+    {
+      "timestamp": "2026-04-09T02:01:01.589723",
+      "category": "nginx",
+      "setting": "aio",
+      "command": "sed -i '/http {/a\\    aio threads;' /etc/nginx/nginx.conf",
+      "success": true,
+      "output": "",
+      "rollback_command": "cp /etc/nginx/nginx.conf.backup /etc/nginx/nginx.conf && nginx -s reload"
+    },
+    {
+      "timestamp": "2026-04-09T02:01:03.332709",
+      "category": "nginx",
+      "setting": "open_file_cache",
+      "command": "sed -i '/http {/a\\    open_file_cache max=10000 inactive=60s;' /etc/nginx/nginx.conf",
+      "success": true,
+      "output": "",
+      "rollback_command": "cp /etc/nginx/nginx.conf.backup /etc/nginx/nginx.conf && nginx -s reload"
+    },
+    {
+      "timestamp": "2026-04-09T02:01:05.055339",
+      "category": "nginx",
+      "setting": "keepalive_requests",
+      "command": "sed -i '/keepalive_timeout/a\\    keepalive_requests 10000;' /etc/nginx/nginx.conf",
+      "success": true,
+      "output": "",
+      "rollback_command": "cp /etc/nginx/nginx.conf.backup /etc/nginx/nginx.conf && nginx -s reload"
+    },
+    {
+      "timestamp": "2026-04-09T02:01:06.840123",
+      "category": "nginx",
+      "setting": "directio",
+      "command": "sed -i '/http {/a\\    directio 512k;' /etc/nginx/nginx.conf",
+      "success": true,
+      "output": "",
+      "rollback_command": "cp /etc/nginx/nginx.conf.backup /etc/nginx/nginx.conf && nginx -s reload"
+    },
+    {
+      "timestamp": "2026-04-09T02:01:08.632396",
+      "category": "nginx",
+      "setting": "sendfile_max_chunk",
+      "command": "sed -i '/sendfile/a\\    sendfile_max_chunk 2m;' /etc/nginx/nginx.conf",
+      "success": true,
+      "output": "",
+      "rollback_command": "cp /etc/nginx/nginx.conf.backup /etc/nginx/nginx.conf && nginx -s reload"
+    },
+    {
+      "timestamp": "2026-04-09T02:01:10.393946",
+      "category": "nginx",
+      "setting": "output_buffers",
+      "command": "sed -i '/http {/a\\    output_buffers 4 2m;' /etc/nginx/nginx.conf",
+      "success": true,
+      "output": "",
+      "rollback_command": "cp /etc/nginx/nginx.conf.backup /etc/nginx/nginx.conf && nginx -s reload"
+    },
+    {
+      "timestamp": "2026-04-09T02:01:12.171916",
+      "category": "kernel",
+      "setting": "net.core.somaxconn",
+      "command": "sysctl -w net.core.somaxconn=65535",
+      "success": true,
+      "output": "net.core.somaxconn = 65535\n",
+      "rollback_command": "sysctl -w net.core.somaxconn=4096"
+    },
+    {
+      "timestamp": "2026-04-09T02:01:12.754400",
+      "category": "kernel",
+      "setting": "net.core.rmem_max",
+      "command": "sysctl -w net.core.rmem_max=67108864",
+      "success": true,
+      "output": "net.core.rmem_max = 67108864\n",
+      "rollback_command": "sysctl -w net.core.rmem_max=212992"
+    },
+    {
+      "timestamp": "2026-04-09T02:01:13.331533",
+      "category": "kernel",
+      "setting": "net.core.wmem_max",
+      "command": "sysctl -w net.core.wmem_max=67108864",
+      "success": true,
+      "output": "net.core.wmem_max = 67108864\n",
+      "rollback_command": "sysctl -w net.core.wmem_max=212992"
+    },
+    {
+      "timestamp": "2026-04-09T02:01:13.884577",
+      "category": "kernel",
+      "setting": "net.ipv4.tcp_congestion_control",
+      "command": "sysctl -w net.ipv4.tcp_congestion_control=bbr",
+      "success": true,
+      "output": "net.ipv4.tcp_congestion_control = bbr\n",
+      "rollback_command": "sysctl -w net.ipv4.tcp_congestion_control=cubic"
+    }
+  ],
+  "token_usage": [
+    {
+      "model": "claude-sonnet-4@20250514",
+      "input_tokens": 1824,
+      "output_tokens": 2189,
+      "total_tokens": 4013,
+      "api_calls": 1,
+      "cost_usd": 0.0383
+    }
+  ],
+  "decision_log": [
+    {
+      "action": "analyze_metrics",
+      "input_summary": "CPU: 112 cores, RAM: 502.0GB, Workers: 112",
+      "input_tokens": 1824,
+      "output_tokens": 2189,
+      "model": "claude-sonnet-4@20250514"
+    }
+  ],
+  "baseline_metrics": {
+    "timestamp": "2026-04-09T01:55:16.483435",
+    "hostname": "e40-h34-000-r650.rdu2.scalelab.redhat.com",
+    "cpu_cores": 112,
+    "memory_gb": 502.0,
+    "nginx_workers": 112,
+    "sysctl_params": {
+      "net.core.somaxconn": "4096",
+      "net.core.rmem_max": "212992",
+      "net.core.wmem_max": "212992",
+      "net.ipv4.tcp_congestion_control": "cubic",
+      "net.ipv4.tcp_max_syn_backlog": "65535"
+    },
+    "file_limits": {
+      "ulimit_n": "1024",
+      "nginx_nofile": "524288"
+    },
+    "disk_scheduler": "[none] mq-deadline kyber bfq",
+    "nic_info": [
+      {
+        "interface": "eno12399np0",
+        "speed": "25000Mb/s",
+        "ip": "10.1.90.86"
+      },
+      {
+        "interface": "eno12409np1",
+        "speed": "25000Mb/s",
+        "ip": "none"
+      },
+      {
+        "interface": "eno12409np1.105",
+        "speed": "25000Mb/s",
+        "ip": "172.25.90.86"
+      },
+      {
+        "interface": "ens1f0",
+        "speed": "25000Mb/s",
+        "ip": "none"
+      },
+      {
+        "interface": "ens1f0.101",
+        "speed": "25000Mb/s",
+        "ip": "172.21.90.86"
+      },
+      {
+        "interface": "ens1f1",
+        "speed": "25000Mb/s",
+        "ip": "none"
+      },
+      {
+        "interface": "ens1f1.102",
+        "speed": "25000Mb/s",
+        "ip": "172.22.90.86"
+      },
+      {
+        "interface": "ens2f0np0",
+        "speed": "100000Mb/s",
+        "ip": "none"
+      },
+      {
+        "interface": "ens2f0np0.103",
+        "speed": "100000Mb/s",
+        "ip": "172.23.90.86"
+      },
+      {
+        "interface": "ens2f1np1",
+        "speed": "100000Mb/s",
+        "ip": "none"
+      },
+      {
+        "interface": "ens2f1np1.104",
+        "speed": "100000Mb/s",
+        "ip": "172.24.90.86"
+      }
+    ]
+  },
+  "baseline_results": [
+    {
+      "workload": "homepage",
+      "requests_per_sec": 383656.36,
+      "transfer_per_sec": "211.11MB/sec",
+      "latency_avg": "2.82ms",
+      "latency_p99": "11.95ms",
+      "errors": {}
+    },
+    {
+      "workload": "small",
+      "requests_per_sec": 369756.0,
+      "transfer_per_sec": "107.2MB/sec",
+      "latency_avg": "2.93ms",
+      "latency_p99": "11.59ms",
+      "errors": {}
+    },
+    {
+      "workload": "medium",
+      "requests_per_sec": 1400.27,
+      "transfer_per_sec": "2.74GB/sec",
+      "latency_avg": "280.83ms",
+      "latency_p99": "1.49s",
+      "errors": {}
+    },
+    {
+      "workload": "large",
+      "requests_per_sec": 186.21,
+      "transfer_per_sec": "2.74GB/sec",
+      "latency_avg": "514.43ms",
+      "latency_p99": "1.28s",
+      "errors": {}
+    },
+    {
+      "workload": "mixed",
+      "requests_per_sec": 2244.24,
+      "transfer_per_sec": "2.74GB/sec",
+      "latency_avg": "124.56ms",
+      "latency_p99": "846.84ms",
+      "errors": {}
+    }
+  ],
+  "after_results": [
+    {
+      "workload": "homepage",
+      "requests_per_sec": 1553016.51,
+      "transfer_per_sec": "854.58MB/sec",
+      "latency_avg": "725.44us",
+      "latency_p99": "3.53ms",
+      "errors": {}
+    },
+    {
+      "workload": "small",
+      "requests_per_sec": 1917031.18,
+      "transfer_per_sec": "555.78MB/sec",
+      "latency_avg": "485.35us",
+      "latency_p99": "1.15ms",
+      "errors": {}
+    },
+    {
+      "workload": "medium",
+      "requests_per_sec": 2924.63,
+      "transfer_per_sec": "5.71GB/sec",
+      "latency_avg": "127.19ms",
+      "latency_p99": "571.61ms",
+      "errors": {}
+    },
+    {
+      "workload": "large",
+      "requests_per_sec": 398.34,
+      "transfer_per_sec": "5.84GB/sec",
+      "latency_avg": "240.58ms",
+      "latency_p99": "446.35ms",
+      "errors": {}
+    },
+    {
+      "workload": "mixed",
+      "requests_per_sec": 4801.69,
+      "transfer_per_sec": "5.83GB/sec",
+      "latency_avg": "54.96ms",
+      "latency_p99": "313.14ms",
+      "errors": {}
+    }
+  ]
+}
