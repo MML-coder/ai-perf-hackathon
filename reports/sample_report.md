@@ -26,7 +26,7 @@ Analysis identified several critical misconfigurations impacting small file perf
 
 | System | Hostname | Role |
 |--------|----------|------|
-| DUT | e40-h34-000-r650.rdu2.scalelab.redhat.com | Nginx Server |
+| DUT | <SUT_HOST> | Nginx Server |
 | Benchmark | e40-h37-000-r650.rdu2.scalelab.redhat.com | Load Generator |
 
 **OS**: RHEL 9.7  

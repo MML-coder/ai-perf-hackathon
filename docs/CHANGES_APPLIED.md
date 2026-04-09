@@ -1,8 +1,8 @@
 # All Changes Applied to SUT
 
 **Date**: 2026-04-08  
-**SUT**: e40-h34-000-r650.rdu2.scalelab.redhat.com  
-**Benchmark Node**: e40-h37-000-r650.rdu2.scalelab.redhat.com
+**SUT**: <SUT_HOST>  
+**Benchmark Node**: <BENCHMARK_HOST>
 
 ---
 
@@ -211,7 +211,7 @@ Utilization: 89.6%
 
 ```bash
 # On SUT
-ssh root@e40-h34-000-r650.rdu2.scalelab.redhat.com '
+ssh root@<SUT_HOST> '
 # Restore nginx config
 ls /etc/nginx/nginx.conf.backup.* | tail -1 | xargs -I{} cp {} /etc/nginx/nginx.conf
 
@@ -232,7 +232,7 @@ nginx -t && systemctl restart nginx
 '
 
 # On Benchmark Node
-ssh root@e40-h37-000-r650.rdu2.scalelab.redhat.com '
+ssh root@<BENCHMARK_HOST> '
 rm -f /etc/sysctl.d/99-benchmark-tcp-tuning.conf
 sysctl --system
 '
@@ -244,17 +244,17 @@ sysctl --system
 
 ```bash
 # Check nginx config
-ssh root@e40-h34-000-r650.rdu2.scalelab.redhat.com "nginx -T | head -100"
+ssh root@<SUT_HOST> "nginx -T | head -100"
 
 # Check worker count
-ssh root@e40-h34-000-r650.rdu2.scalelab.redhat.com "ps aux | grep 'nginx: worker' | wc -l"
+ssh root@<SUT_HOST> "ps aux | grep 'nginx: worker' | wc -l"
 
 # Check file limits
-ssh root@e40-h34-000-r650.rdu2.scalelab.redhat.com "cat /proc/\$(pgrep -o nginx)/limits | grep 'open files'"
+ssh root@<SUT_HOST> "cat /proc/\$(pgrep -o nginx)/limits | grep 'open files'"
 
 # Check TCP settings
-ssh root@e40-h34-000-r650.rdu2.scalelab.redhat.com "sysctl net.ipv4.tcp_congestion_control"
+ssh root@<SUT_HOST> "sysctl net.ipv4.tcp_congestion_control"
 
 # Run benchmark
-ssh root@e40-h37-000-r650.rdu2.scalelab.redhat.com "./benchmark.sh test-run"
+ssh root@<BENCHMARK_HOST> "./benchmark.sh test-run"
 ```

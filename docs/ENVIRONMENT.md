@@ -6,7 +6,7 @@
 
 | Property | Value |
 |----------|-------|
-| Hostname | `e40-h34-000-r650.rdu2.scalelab.redhat.com` |
+| Hostname | `<SUT_HOST>` |
 | Alias | `test-machine` (in /etc/hosts on benchmark node) |
 | OS | RHEL 9.7 |
 | Hardware | Dell R650 |
@@ -17,7 +17,7 @@
 
 | Property | Value |
 |----------|-------|
-| Hostname | `e40-h37-000-r650.rdu2.scalelab.redhat.com` |
+| Hostname | `<BENCHMARK_HOST>` |
 | OS | RHEL |
 | Hardware | Dell R650 |
 | Role | wrk benchmark tool |
@@ -29,18 +29,18 @@
 
 ```bash
 # Benchmark node
-ssh root@e40-h37-000-r650.rdu2.scalelab.redhat.com
+ssh root@<BENCHMARK_HOST>
 
 # DUT (Nginx server)
-ssh root@e40-h34-000-r650.rdu2.scalelab.redhat.com
+ssh root@<SUT_HOST>
 ```
 
 ### Setup SSH Keys (Recommended)
 
 ```bash
 # Copy your SSH key to both systems
-ssh-copy-id root@e40-h37-000-r650.rdu2.scalelab.redhat.com
-ssh-copy-id root@e40-h34-000-r650.rdu2.scalelab.redhat.com
+ssh-copy-id root@<BENCHMARK_HOST>
+ssh-copy-id root@<SUT_HOST>
 ```
 
 ### From Benchmark Node to DUT
@@ -237,7 +237,7 @@ chmod 644 ~/.ssh/id_rsa.pub
 ```bash
 # Check if on VPN (if required)
 # Check DNS resolution
-nslookup e40-h34-000-r650.rdu2.scalelab.redhat.com
+nslookup <SUT_HOST>
 
 # Try IP directly if DNS fails
 ping <IP-address>

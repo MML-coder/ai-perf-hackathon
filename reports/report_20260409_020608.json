@@ -1,6 +1,6 @@
 {
   "timestamp": "2026-04-09T02:06:08.971771",
-  "hostname": "e40-h34-000-r650.rdu2.scalelab.redhat.com",
+  "hostname": "<SUT_HOST>",
   "summary": "System shows severe network bottleneck due to using 25Gbps interface instead of 100Gbps, plus multiple Nginx misconfigurations limiting high-RPS performance. Access logging at 380K+ RPS is causing massive I/O overhead, and worker connections are severely limited.",
   "improvements": [
     {
@@ -343,7 +343,7 @@
   ],
   "baseline_metrics": {
     "timestamp": "2026-04-09T01:55:16.483435",
-    "hostname": "e40-h34-000-r650.rdu2.scalelab.redhat.com",
+    "hostname": "<SUT_HOST>",
     "cpu_cores": 112,
     "memory_gb": 502.0,
     "nginx_workers": 112,

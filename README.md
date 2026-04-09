@@ -106,8 +106,8 @@ Customer reports performance degradation in Nginx web server for small and mediu
 
 | System | Hostname | Role |
 |--------|----------|------|
-| DUT (Device Under Test) | e40-h34-000-r650.rdu2.scalelab.redhat.com | Nginx server (112 cores, 502GB RAM) |
-| Benchmark Node | e40-h37-000-r650.rdu2.scalelab.redhat.com | Load generator (wrk) |
+| DUT (Device Under Test) | `<SUT_HOST>` | Nginx server |
+| Benchmark Node | `<BENCHMARK_HOST>` | Load generator (wrk) |
 
 ## Quick Start
 
@@ -120,17 +120,17 @@ Customer reports performance degradation in Nginx web server for small and mediu
 
 #### SSH Access Setup
 ```bash
-# 1. Copy your SSH key to both hosts (example hosts shown)
-ssh-copy-id root@e26-h23-000-r650.rdu2.scalelab.redhat.com  # SUT
-ssh-copy-id root@e40-h33-000-r650.rdu2.scalelab.redhat.com  # Benchmark
+# 1. Copy your SSH key to both hosts
+ssh-copy-id root@<SUT_HOST>
+ssh-copy-id root@<BENCHMARK_HOST>
 
 # 2. Accept host keys
-ssh-keyscan e26-h23-000-r650.rdu2.scalelab.redhat.com >> ~/.ssh/known_hosts
-ssh-keyscan e40-h33-000-r650.rdu2.scalelab.redhat.com >> ~/.ssh/known_hosts
+ssh-keyscan <SUT_HOST> >> ~/.ssh/known_hosts
+ssh-keyscan <BENCHMARK_HOST> >> ~/.ssh/known_hosts
 
 # 3. Verify passwordless access works
-ssh root@e26-h23-000-r650.rdu2.scalelab.redhat.com 'hostname'
-ssh root@e40-h33-000-r650.rdu2.scalelab.redhat.com 'hostname'
+ssh root@<SUT_HOST> 'hostname'
+ssh root@<BENCHMARK_HOST> 'hostname'
 ```
 
 #### SUT (Nginx Server) Requirements
@@ -162,8 +162,8 @@ pip install -r requirements.txt
 
 # 2. Run the agent with Vertex AI
 python -m agent \
-  --sut e40-h34-000-r650.rdu2.scalelab.redhat.com \
-  --benchmark e40-h37-000-r650.rdu2.scalelab.redhat.com \
+  --sut <SUT_HOST> \
+  --benchmark <BENCHMARK_HOST> \
   --vertex \
   --agentic
 
