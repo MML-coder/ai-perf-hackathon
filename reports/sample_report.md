@@ -39,25 +39,30 @@ Analysis identified several critical misconfigurations impacting small file perf
 
 ### Identified Issues
 
-1. **sendfile disabled** (CRITICAL)
+1. **Network interface changed after RHEL 9.7 migration** (CRITICAL)
+   - Impact: Traffic routing through 25Gbps NIC instead of 100Gbps
+   - Evidence: Medium files saturating 25G at 89% (2.8 GB/s), 100G NIC available but unused
+   - Fix: Agent auto-discovers fastest NIC and switches benchmark to use it
+
+2. **sendfile disabled** (HIGH)
    - Impact: Medium files served via userspace copy instead of kernel zero-copy
    - Evidence: High CPU usage during medium file tests, low throughput
 
-2. **worker_connections too low** (HIGH)
+3. **worker_connections too low** (HIGH)
    - Setting: 1024 (default)
    - Impact: Connection queue saturation under high load
    - Evidence: 7 timeout errors in small file test
 
-3. **open_file_cache disabled** (HIGH)
+4. **open_file_cache disabled** (HIGH)
    - Impact: Repeated file descriptor allocation for 2.5M small files
    - Evidence: High syscall overhead
 
-4. **File descriptor limits** (MEDIUM)
+5. **File descriptor limits** (MEDIUM)
    - Setting: 1024 (default)
    - Impact: Limit on concurrent connections
    - Evidence: "Too many open files" potential
 
-5. **Kernel TCP parameters** (MEDIUM)
+6. **Kernel TCP parameters** (MEDIUM)
    - somaxconn: 128 (default)
    - Impact: Connection backlog overflow
    - Evidence: SYN queue saturation under load
