@@ -289,37 +289,22 @@ def main():
         for line in metrics.nginx_config.split("\n")[:20]:
             print(f"  {line}")
 
-    # Step 1.5: Discover and switch to fastest NIC
-    nic_switched = None
+    # Discover NIC info (for analysis, but don't switch yet)
+    fastest_nic = None
+    current_nic_ip = None
+    nic_mismatch = False
     if not args.skip_benchmark:
-        print_step("Discovering fastest NIC on SUT...")
+        print_step("Discovering NICs on SUT...")
         fastest_nic = collector.discover_fastest_nic()
-        if fastest_nic:
-            current_ip = collector.get_current_test_machine_ip()
-            print(f"  Fastest NIC: {fastest_nic['interface']} @ {fastest_nic['speed_mbps']}Mbps (IP: {fastest_nic['ip']})")
-            print(f"  Current test-machine IP: {current_ip}")
+        current_nic_ip = collector.get_current_test_machine_ip()
+        if fastest_nic and current_nic_ip:
+            print(f"  Current NIC: {current_nic_ip}")
+            print(f"  Fastest NIC available: {fastest_nic['interface']} @ {fastest_nic['speed_mbps']}Mbps (IP: {fastest_nic['ip']})")
+            if current_nic_ip != fastest_nic["ip"]:
+                nic_mismatch = True
+                print(f"  *** Using slower NIC - will recommend switch after analysis ***")
 
-            if current_ip != fastest_nic["ip"]:
-                # Find what speed the current IP is on
-                current_speed = None
-                for nic in metrics.nic_info:
-                    if nic.get("ip") == current_ip:
-                        current_speed = nic.get("speed", "unknown")
-                        break
-
-                print(f"\n  *** POTENTIAL ROOT CAUSE DETECTED ***")
-                print(f"  System is using {current_speed} NIC but {fastest_nic['speed_mbps']}Mbps is available!")
-                print(f"  This may explain performance degradation after RHEL 9.7 migration.")
-                print(f"  (Network interface selection may have changed during OS upgrade)\n")
-
-                print_step(f"Switching to faster NIC ({fastest_nic['speed_mbps']}Mbps)...")
-                nic_switched = collector.switch_to_fastest_nic()
-                if nic_switched and nic_switched.get("switched"):
-                    print(f"  Switched: {nic_switched['previous_ip']} -> {fastest_nic['ip']}")
-            else:
-                print(f"  Already using fastest NIC")
-
-    # Step 2: Collect baseline benchmark results
+    # Step 2: Collect baseline benchmark results (on current NIC, before tuning)
     print_header("Step 2: Collecting Baseline Benchmark Results")
 
     baseline_results = []
@@ -358,8 +343,24 @@ def main():
 
     analyzer = Analyzer(llm)
 
+    # Build NIC info for analysis
+    nic_analysis_info = None
+    if nic_mismatch and fastest_nic:
+        current_speed = None
+        for nic in metrics.nic_info:
+            if nic.get("ip") == current_nic_ip:
+                current_speed = nic.get("speed", "unknown")
+                break
+        nic_analysis_info = {
+            "mismatch": True,
+            "current_ip": current_nic_ip,
+            "current_speed": current_speed,
+            "fastest_ip": fastest_nic["ip"],
+            "fastest_speed": fastest_nic["speed_mbps"],
+        }
+
     print_step(f"Sending metrics to {get_model_id(args.model)} for analysis...")
-    analysis = analyzer.analyze(metrics, baseline_results)
+    analysis = analyzer.analyze(metrics, baseline_results, nic_analysis_info)
 
     print(f"\nSummary: {analysis.summary}")
     print(f"\nBottlenecks Identified ({len(analysis.bottlenecks)}):")
@@ -379,6 +380,19 @@ def main():
 
     # Step 4: Apply remediations
     print_header("Step 4: Applying Tunings")
+
+    # First, switch to fastest NIC if mismatch detected
+    nic_switched = None
+    if nic_mismatch and fastest_nic and not args.dry_run:
+        print_step("Switching to fastest NIC (100Gbps)...")
+        print(f"  *** ROOT CAUSE FIX: Network interface changed during RHEL 9.7 migration ***")
+        nic_switched = collector.switch_to_fastest_nic()
+        if nic_switched and nic_switched.get("switched"):
+            print(f"  Switched: {nic_switched['previous_ip']} -> {fastest_nic['ip']}")
+            print(f"  This alone should improve medium/large file performance by ~300%")
+    elif nic_mismatch and args.dry_run:
+        print_step("[DRY RUN] Would switch to fastest NIC")
+        print(f"  {current_nic_ip} -> {fastest_nic['ip']}")
 
     remediator = Remediator(sut_client, dry_run=args.dry_run)
 

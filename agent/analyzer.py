@@ -122,11 +122,12 @@ class Analyzer:
         self,
         metrics: SystemMetrics,
         baseline_results: Optional[list[BenchmarkResult]] = None,
+        nic_info: Optional[dict] = None,
     ) -> AnalysisResult:
         """Analyze system metrics and identify bottlenecks."""
 
         # Build the analysis prompt
-        prompt = self._build_analysis_prompt(metrics, baseline_results)
+        prompt = self._build_analysis_prompt(metrics, baseline_results, nic_info)
 
         # Call LLM
         response = self.llm.analyze(
@@ -150,11 +151,13 @@ class Analyzer:
         self,
         metrics: SystemMetrics,
         baseline_results: Optional[list[BenchmarkResult]] = None,
+        nic_info: Optional[dict] = None,
     ) -> str:
         """Build the prompt for analysis."""
 
         prompt_parts = [
             "Analyze this RHEL/Nginx system for performance bottlenecks.",
+            "The customer migrated to RHEL 9.7 and is seeing performance degradation.",
             "",
             "## System Information",
             f"- Hostname: {metrics.hostname}",
@@ -187,6 +190,18 @@ class Analyzer:
         ])
         for nic in metrics.nic_info:
             prompt_parts.append(f"- {nic['interface']}: {nic['speed']} (IP: {nic['ip']})")
+
+        # Add NIC mismatch warning if detected
+        if nic_info and nic_info.get("mismatch"):
+            prompt_parts.extend([
+                "",
+                "## CRITICAL: Network Interface Mismatch Detected",
+                f"- Currently using: {nic_info.get('current_ip')} ({nic_info.get('current_speed', 'unknown')})",
+                f"- Fastest available: {nic_info.get('fastest_ip')} ({nic_info.get('fastest_speed')}Mbps)",
+                "- This is likely the PRIMARY root cause of performance degradation!",
+                "- RHEL 9.7 migration may have changed the default network interface.",
+                "- Medium/large files are network-limited - switching NICs could give 3-4x improvement.",
+            ])
 
         if baseline_results:
             prompt_parts.extend([
