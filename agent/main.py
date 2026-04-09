@@ -232,7 +232,11 @@ def main():
             contestant=args.contestant,
         )
 
+        start_time = datetime.utcnow()
         state = runner.run()
+        end_time = datetime.utcnow()
+        elapsed = end_time - start_time
+        elapsed_minutes = elapsed.total_seconds() / 60
 
         # Print formatted summary
         print_header("Agentic Run Summary")
@@ -246,6 +250,7 @@ def main():
         total_cost = sum(u.get('cost_usd', 0) for u in usage)
         total_calls = sum(u.get('api_calls', 0) for u in usage)
         print(f"Cost: ${total_cost:.2f} ({total_tokens:,} tokens, {total_calls} API calls)")
+        print(f"Time: {elapsed_minutes:.1f} minutes")
 
         # Performance comparison if we have data
         if state.baseline_rps and state.current_rps:
@@ -286,6 +291,9 @@ def main():
             "success": state.success,
             "summary": state.summary,
             "iterations": state.iteration,
+            "elapsed_minutes": round(elapsed_minutes, 1),
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat(),
             "baseline_rps": state.baseline_rps,
             "final_rps": state.current_rps,
             "actions": state.actions_taken,
@@ -308,6 +316,7 @@ def main():
             f"**Model**: {get_model_id(args.model)}",
             f"**Status**: {'Success' if state.success else 'Failed'}",
             f"**Iterations**: {state.iteration}/{args.max_iterations}",
+            f"**Elapsed Time**: {elapsed_minutes:.1f} minutes",
             "",
             "---",
             "",
