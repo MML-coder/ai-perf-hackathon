@@ -35,6 +35,13 @@ TOOLS AVAILABLE:
 
 SYSTEMATIC APPROACH:
 1. DISCOVER: Explore system state before making changes
+   - **CHECK NICS FIRST** (primary root cause!):
+     for iface in $(ls /sys/class/net/ | grep -v lo); do
+       speed=$(ethtool $iface 2>/dev/null | grep Speed | awk '{print $2}')
+       ip=$(ip addr show $iface | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
+       echo "$iface: $speed (IP: $ip)"
+     done
+   - Check which IP benchmark uses: On benchmark node, grep 'test-machine' /etc/hosts
    - Check CPU cores: nproc
    - Check memory: free -h
    - Check nginx config: cat /etc/nginx/nginx.conf
@@ -42,11 +49,14 @@ SYSTEMATIC APPROACH:
    - Check file limits: ulimit -n, cat /proc/$(pgrep -o nginx)/limits
    - Check kernel params: sysctl net.core.somaxconn, net.ipv4.tcp_congestion_control
    - Check disk: cat /sys/block/nvme0n1/queue/scheduler
-   - Check network interfaces: ethtool <iface> | grep Speed
 
 2. ANALYZE: Identify bottlenecks from collected data
+   - If using 25G NIC but 100G available, this is PRIMARY root cause!
 
 3. TUNE: Apply changes systematically (backup first!)
+   - Switch to 100G NIC first if available (biggest impact)
+   - Then apply nginx tunings
+   - Then kernel tunings
 
 4. VERIFY: Run benchmark after each change
 
@@ -81,8 +91,19 @@ DISK I/O:
 - NVMe scheduler: echo none > /sys/block/nvme0n1/queue/scheduler
 - Read-ahead: blockdev --setra 8192 /dev/nvme0n1
 
-NETWORK:
-- Check for faster NICs (100G vs 25G available?)
+NETWORK (CRITICAL - CHECK FIRST!):
+- **PRIMARY ROOT CAUSE**: RHEL 9.7 migration often changes default NIC from 100G to 25G!
+- Discover all NICs and speeds:
+  for iface in $(ls /sys/class/net/ | grep -v lo); do
+    speed=$(ethtool $iface 2>/dev/null | grep Speed | awk '{print $2}')
+    ip=$(ip addr show $iface | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
+    echo "$iface: $speed (IP: $ip)"
+  done
+- If 100G NIC available but using 25G, switch benchmark node's /etc/hosts:
+  On benchmark node: Update "test-machine" entry to point to 100G NIC IP
+  ssh benchmark_host "sed -i 's/^[^#].*test-machine/#&/' /etc/hosts"
+  ssh benchmark_host "echo '<100G-IP> test-machine' >> /etc/hosts"
+- This alone can give 3-4x improvement for medium/large files!
 - Ring buffers: ethtool -G <iface> rx 2047 tx 2047
 
 TUNED PROFILE:
