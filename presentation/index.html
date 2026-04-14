@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Performance Agent — Hackathon Demo</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/monokai.css">
+
+  <style>
+    :root {
+      --accent: #e05735;
+      --accent2: #f5a623;
+      --green: #2ecc71;
+      --blue: #3498db;
+      --card-bg: rgba(255,255,255,0.05);
+    }
+
+    .reveal {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    /* ---------- slide-level overrides ---------- */
+    .reveal .slides section {
+      text-align: left;
+    }
+
+    .reveal h1, .reveal h2, .reveal h3 {
+      text-transform: none;
+      letter-spacing: -0.02em;
+    }
+
+    .reveal h1 { font-size: 2.2em; }
+    .reveal h2 { font-size: 1.6em; color: var(--accent2); }
+    .reveal h3 { font-size: 1.15em; color: #aaa; font-weight: 400; margin-top: 0; }
+
+    /* ---------- utility ---------- */
+    .center { text-align: center !important; }
+    .small  { font-size: 0.72em; }
+    .dim    { color: #888; }
+    .accent { color: var(--accent); }
+    .green  { color: var(--green); }
+    .blue   { color: var(--blue); }
+    .gold   { color: var(--accent2); }
+
+    /* ---------- title slide ---------- */
+    .title-slide { text-align: center !important; }
+    .title-slide h1 { font-size: 2.4em; margin-bottom: 0.2em; }
+    .title-slide .subtitle { font-size: 1.1em; color: var(--accent2); margin-bottom: 0.6em; }
+    .title-slide .meta { font-size: 0.75em; color: #777; }
+
+    /* ---------- cards ---------- */
+    .card-row {
+      display: flex;
+      gap: 1em;
+      margin-top: 0.8em;
+    }
+    .card {
+      flex: 1;
+      background: var(--card-bg);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 0.8em 1em;
+    }
+    .card .card-icon { font-size: 1.6em; display: block; margin-bottom: 0.3em; }
+    .card h4 { margin: 0 0 0.3em; color: var(--accent2); font-size: 0.9em; }
+    .card p  { margin: 0; font-size: 0.72em; color: #ccc; line-height: 1.5; }
+
+    /* ---------- phase strip ---------- */
+    .phase-row {
+      display: flex;
+      gap: 0;
+      margin-top: 1em;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .phase {
+      flex: 1;
+      padding: 0.7em 0.5em;
+      text-align: center;
+      font-size: 0.75em;
+    }
+    .phase .num { font-size: 1.4em; font-weight: 700; display: block; }
+    .phase .label { display: block; font-weight: 600; margin: 0.2em 0; }
+    .phase .detail { color: rgba(255,255,255,0.7); font-size: 0.85em; }
+    .phase-1 { background: #1a3a5c; }
+    .phase-2 { background: #2c1a4a; }
+    .phase-3 { background: #4a2c1a; }
+    .phase-4 { background: #1a4a2c; }
+
+    /* ---------- result table ---------- */
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8em;
+      margin-top: 0.6em;
+    }
+    .result-table th {
+      background: rgba(255,255,255,0.1);
+      padding: 0.5em 0.8em;
+      text-align: left;
+      font-weight: 600;
+      color: var(--accent2);
+    }
+    .result-table td {
+      padding: 0.45em 0.8em;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .result-table tr:hover td { background: rgba(255,255,255,0.04); }
+    .improvement { color: var(--green); font-weight: 700; }
+
+    /* ---------- bar chart ---------- */
+    .bar-chart { margin-top: 0.8em; }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.55em;
+      gap: 0.8em;
+      font-size: 0.78em;
+    }
+    .bar-label { width: 7em; flex-shrink: 0; color: #ccc; }
+    .bar-track {
+      flex: 1;
+      background: rgba(255,255,255,0.07);
+      border-radius: 4px;
+      height: 1.6em;
+      position: relative;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      padding-left: 0.5em;
+      font-weight: 700;
+      font-size: 0.85em;
+      transition: width 1s ease;
+      white-space: nowrap;
+    }
+    .bar-baseline { background: #555; }
+    .bar-after    { background: linear-gradient(90deg, #e05735, #f5a623); }
+
+    /* ---------- finding cards ---------- */
+    .finding {
+      background: var(--card-bg);
+      border-left: 3px solid var(--accent);
+      padding: 0.55em 0.8em;
+      margin-bottom: 0.5em;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.78em;
+    }
+    .finding.secondary { border-color: var(--blue); }
+    .finding.tertiary  { border-color: #888; }
+    .finding strong { color: var(--accent2); }
+
+    /* ---------- cost badge ---------- */
+    .cost-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1em;
+      margin-top: 0.8em;
+    }
+    .cost-card {
+      background: var(--card-bg);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 1em;
+      text-align: center;
+    }
+    .cost-card .big { font-size: 2em; font-weight: 700; color: var(--accent2); }
+    .cost-card .label { font-size: 0.72em; color: #aaa; margin-top: 0.2em; }
+
+    /* ---------- arch diagram ---------- */
+    .arch {
+      display: flex;
+      align-items: center;
+      gap: 0.4em;
+      margin-top: 0.8em;
+      font-size: 0.72em;
+      flex-wrap: wrap;
+    }
+    .arch-box {
+      background: var(--card-bg);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      padding: 0.5em 0.8em;
+      text-align: center;
+    }
+    .arch-box .icon { font-size: 1.5em; display: block; }
+    .arch-box .name { font-weight: 600; }
+    .arch-box .sub  { color: #888; font-size: 0.85em; }
+    .arch-arrow { color: #666; font-size: 1.2em; flex-shrink: 0; }
+
+    /* ---------- tool list ---------- */
+    .tool-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5em;
+      margin-top: 0.6em;
+    }
+    .tool-chip {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 0.3em 0.8em;
+      font-size: 0.7em;
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* ---------- timeline ---------- */
+    .timeline { margin-top: 0.8em; }
+    .tl-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.8em;
+      margin-bottom: 0.5em;
+      font-size: 0.78em;
+    }
+    .tl-dot {
+      width: 0.9em;
+      height: 0.9em;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 0.2em;
+    }
+    .tl-content strong { color: var(--accent2); }
+    .tl-content p { margin: 0.1em 0 0; color: #bbb; font-size: 0.9em; }
+
+    /* ---------- demo slide ---------- */
+    .demo-slide { text-align: center !important; }
+    .demo-slide .big-icon { font-size: 4em; display: block; margin: 0.2em auto; }
+    .demo-slide .cmd {
+      display: inline-block;
+      background: #1a1a2e;
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 0.6em 1.2em;
+      font-family: 'Fira Code', 'Courier New', monospace;
+      font-size: 0.78em;
+      color: #e0e0e0;
+      margin-top: 0.8em;
+      text-align: left;
+    }
+
+    /* ---------- summary slide ---------- */
+    .summary-row {
+      display: flex;
+      gap: 1em;
+      margin-top: 0.8em;
+    }
+    .summary-col { flex: 1; }
+    .summary-col h4 { color: var(--accent2); margin: 0 0 0.4em; font-size: 0.9em; }
+    .summary-col ul { margin: 0; padding-left: 1.2em; font-size: 0.75em; color: #ccc; line-height: 1.7; }
+
+    /* fragment helper */
+    .reveal .fragment.highlight-current-green.current-fragment { color: var(--green); }
+  </style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- =========================================================
+     SLIDE 1 — TITLE
+     ========================================================= -->
+<section class="title-slide">
+  <h1>AI Performance Agent</h1>
+  <p class="subtitle">Autonomous Nginx Tuning on RHEL 9.7 with Claude</p>
+  <hr style="border-color: rgba(255,255,255,0.15); margin: 0.6em auto; width: 60%;">
+  <p class="meta">AI Performance Hackathon &nbsp;·&nbsp; April 2026</p>
+</section>
+
+<!-- =========================================================
+     SLIDE 2 — PROBLEM
+     ========================================================= -->
+<section>
+  <h2>The Problem</h2>
+  <h3>Customer reports severe performance degradation after RHEL 9.7 migration</h3>
+
+  <div class="card-row">
+    <div class="card">
+      <span class="card-icon">📉</span>
+      <h4>Symptom</h4>
+      <p>Small &amp; medium file serving dropped dramatically post-migration. Root cause unknown.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">🔍</span>
+      <h4>Challenge</h4>
+      <p>Dozens of potential variables: Nginx config, kernel params, network interfaces, I/O schedulers.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">⏱️</span>
+      <h4>Cost</h4>
+      <p>Manual diagnosis takes days of expert time, trial-and-error, and guesswork.</p>
+    </div>
+  </div>
+
+  <div class="finding" style="margin-top: 1em;">
+    <strong>Goal:</strong> Identify root causes and apply tunings autonomously — no human in the loop.
+  </div>
+</section>
+
+<!-- =========================================================
+     SLIDE 3 — SOLUTION OVERVIEW
+     ========================================================= -->
+<section>
+  <h2>Our Solution</h2>
+  <h3>An autonomous agent powered by Claude that diagnoses and heals itself</h3>
+
+  <div class="phase-row">
+    <div class="phase phase-1">
+      <span class="num">1</span>
+      <span class="label">Collect</span>
+      <span class="detail">SSH telemetry<br>Baseline benchmarks</span>
+    </div>
+    <div class="phase phase-2">
+      <span class="num">2</span>
+      <span class="label">Analyze</span>
+      <span class="detail">Claude RCA<br>Ranked bottlenecks</span>
+    </div>
+    <div class="phase phase-3">
+      <span class="num">3</span>
+      <span class="label">Remediate</span>
+      <span class="detail">Apply tunings<br>Safe rollback</span>
+    </div>
+    <div class="phase phase-4">
+      <span class="num">4</span>
+      <span class="label">Verify</span>
+      <span class="detail">Re-benchmark<br>Iterate or stop</span>
+    </div>
+  </div>
+
+  <div class="card-row" style="margin-top: 1em;">
+    <div class="card">
+      <h4>Autonomous Loop</h4>
+      <p>Agent decides what to measure, what to change, and when to stop — without human input.</p>
+    </div>
+    <div class="card">
+      <h4>Safety First</h4>
+      <p>Backs up configs before every change. Validates with <code>nginx -t</code>. Rolls back on regression.</p>
+    </div>
+    <div class="card">
+      <h4>Full Audit Trail</h4>
+      <p>Every decision logged with evidence, reasoning, and rollback instructions.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     SLIDE 4 — ARCHITECTURE
+     ========================================================= -->
+<section>
+  <h2>Architecture</h2>
+  <h3>Agent orchestrates tools via Claude's tool-use API</h3>
+
+  <div class="arch">
+    <div class="arch-box">
+      <span class="icon">💻</span>
+      <span class="name">Agent CLI</span>
+      <span class="sub">agentic.py</span>
+    </div>
+    <span class="arch-arrow">⟷</span>
+    <div class="arch-box">
+      <span class="icon">🤖</span>
+      <span class="name">Claude Sonnet</span>
+      <span class="sub">Tool-use API</span>
+    </div>
+    <span class="arch-arrow">→</span>
+    <div class="arch-box">
+      <span class="icon">🖥️</span>
+      <span class="name">SUT (RHEL 9.7)</span>
+      <span class="sub">SSH · Nginx</span>
+    </div>
+    <span class="arch-arrow">+</span>
+    <div class="arch-box">
+      <span class="icon">📊</span>
+      <span class="name">Benchmark Node</span>
+      <span class="sub">wrk · Lua scripts</span>
+    </div>
+  </div>
+
+  <p style="margin-top: 0.8em; font-size: 0.8em;">Tools exposed to the agent:</p>
+  <div class="tool-list">
+    <span class="tool-chip">run_command</span>
+    <span class="tool-chip">read_file</span>
+    <span class="tool-chip">write_file</span>
+    <span class="tool-chip">run_benchmark</span>
+    <span class="tool-chip">done</span>
+  </div>
+
+  <div class="card-row" style="margin-top: 0.8em;">
+    <div class="card small">
+      <h4>collector.py</h4>
+      <p>CPU, memory, NICs, kernel params, nginx config → <code>SystemMetrics</code></p>
+    </div>
+    <div class="card small">
+      <h4>analyzer.py</h4>
+      <p>Sends telemetry to Claude → ranked bottleneck list with expected impact</p>
+    </div>
+    <div class="card small">
+      <h4>remediator.py</h4>
+      <p>Applies tunings via SSH, validates config, logs old/new values</p>
+    </div>
+    <div class="card small">
+      <h4>reporter.py</h4>
+      <p>Markdown + JSON report with decision log and rollback scripts</p>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     SLIDE 5 — WHAT THE AGENT FOUND
+     ========================================================= -->
+<section>
+  <h2>What the Agent Discovered</h2>
+  <h3>Root causes ranked by impact, identified autonomously</h3>
+
+  <div class="timeline" style="margin-top: 0.9em;">
+    <div class="tl-row">
+      <div class="tl-dot" style="background: var(--accent);"></div>
+      <div class="tl-content">
+        <strong>PRIMARY — Wrong NIC selected after RHEL 9.7 migration</strong>
+        <p>System had a 100 Gbps NIC (<code>ens2f0np0</code>) but traffic was routed through a 25 Gbps NIC (<code>eno12399np0</code>). A 4× bandwidth bottleneck hiding in plain sight.</p>
+      </div>
+    </div>
+    <div class="tl-row">
+      <div class="tl-dot" style="background: var(--blue);"></div>
+      <div class="tl-content">
+        <strong>SECONDARY — Nginx misconfigured for high-RPS workloads</strong>
+        <p><code>worker_connections 1024</code> · <code>access_log</code> on at 380K+ RPS · no file caching · no async I/O</p>
+      </div>
+    </div>
+    <div class="tl-row">
+      <div class="tl-dot" style="background: #888;"></div>
+      <div class="tl-content">
+        <strong>TERTIARY — Kernel TCP stack at defaults</strong>
+        <p>208 KB network buffers · <code>cubic</code> congestion control · <code>somaxconn 4096</code></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="finding" style="margin-top: 0.8em;">
+    <strong>Key insight:</strong> The NIC bug alone delivered 3–4× more improvement than all other optimizations combined. Classic migration regression — invisible to traditional monitoring.
+  </div>
+</section>
+
+<!-- =========================================================
+     SLIDE 6 — RESULTS
+     ========================================================= -->
+<section>
+  <h2>Results</h2>
+  <h3>100%+ improvement across all workloads</h3>
+
+  <table class="result-table">
+    <thead>
+      <tr>
+        <th>Workload</th>
+        <th>Baseline (rps)</th>
+        <th>After Tuning (rps)</th>
+        <th>Improvement</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Homepage</td>
+        <td class="dim">383,656</td>
+        <td>1,553,017</td>
+        <td class="improvement">+305%</td>
+      </tr>
+      <tr>
+        <td>Small files (10 KB)</td>
+        <td class="dim">369,756</td>
+        <td>1,917,031</td>
+        <td class="improvement">+419%</td>
+      </tr>
+      <tr>
+        <td>Medium files (2 MB)</td>
+        <td class="dim">1,400</td>
+        <td>2,925</td>
+        <td class="improvement">+109%</td>
+      </tr>
+      <tr>
+        <td>Large files</td>
+        <td class="dim">186</td>
+        <td>398</td>
+        <td class="improvement">+114%</td>
+      </tr>
+      <tr>
+        <td>Mixed workload</td>
+        <td class="dim">2,244</td>
+        <td>4,802</td>
+        <td class="improvement">+114%</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="bar-chart" style="margin-top: 0.8em;">
+    <div class="bar-row">
+      <span class="bar-label">Small files</span>
+      <div class="bar-track">
+        <div class="bar-fill bar-after" style="width: 100%;">+419% ↑</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <span class="bar-label">Medium files</span>
+      <div class="bar-track">
+        <div class="bar-fill bar-after" style="width: 51%;">+109% ↑</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <span class="bar-label">Large files</span>
+      <div class="bar-track">
+        <div class="bar-fill bar-after" style="width: 53%;">+114% ↑</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     SLIDE 7 — COST & EFFICIENCY
+     ========================================================= -->
+<section>
+  <h2>Cost &amp; Efficiency</h2>
+  <h3>Entire analysis done with a single LLM call</h3>
+
+  <div class="cost-grid">
+    <div class="cost-card">
+      <div class="big">$0.04</div>
+      <div class="label">Total LLM cost</div>
+    </div>
+    <div class="cost-card">
+      <div class="big">4,013</div>
+      <div class="label">Total tokens used</div>
+    </div>
+    <div class="cost-card">
+      <div class="big">1</div>
+      <div class="label">LLM API call</div>
+    </div>
+    <div class="cost-card">
+      <div class="big">~0 min</div>
+      <div class="label">Human time required</div>
+    </div>
+  </div>
+
+  <div class="card-row" style="margin-top: 0.8em;">
+    <div class="card">
+      <h4>Model</h4>
+      <p><code>claude-sonnet-4@20250514</code><br>via Google Cloud Vertex AI</p>
+    </div>
+    <div class="card">
+      <h4>Tokens</h4>
+      <p>Input: 1,824 &nbsp;·&nbsp; Output: 2,189<br>All telemetry → ranked fix list in one pass</p>
+    </div>
+    <div class="card">
+      <h4>vs. Manual</h4>
+      <p>Expert diagnosis: 1–3 days<br>Agent diagnosis: minutes</p>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     SLIDE 8 — DEMO
+     ========================================================= -->
+<section class="demo-slide">
+  <h2 style="text-align:center;">Live Demo</h2>
+  <span class="big-icon">🎬</span>
+  <h3 style="text-align:center;">Autonomous agent finding and fixing a performance regression</h3>
+
+  <div class="cmd">
+<span style="color:#888;"># Run the autonomous agent</span><br>
+python -m agent \<br>
+&nbsp;&nbsp;--sut &lt;nginx-server&gt; \<br>
+&nbsp;&nbsp;--benchmark &lt;benchmark-host&gt; \<br>
+&nbsp;&nbsp;--vertex \<br>
+&nbsp;&nbsp;--agentic<br>
+<br>
+<span style="color:#888;"># View the generated report</span><br>
+cat reports/report_*.md
+  </div>
+
+  <p style="text-align:center; font-size:0.7em; color:#888; margin-top:0.8em;">
+    Watch the agent: discover NICs → benchmark → analyze with Claude → apply tunings → verify results
+  </p>
+</section>
+
+<!-- =========================================================
+     SLIDE 9 — GENERALISATION & FUTURE WORK
+     ========================================================= -->
+<section>
+  <h2>Broader Applications</h2>
+  <h3>The architecture generalises beyond Nginx</h3>
+
+  <div class="card-row">
+    <div class="card">
+      <span class="card-icon">🗄️</span>
+      <h4>Database Tuning</h4>
+      <p>PostgreSQL / MySQL query plans, buffer pool sizes, index advisor — same loop, different tools.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">☁️</span>
+      <h4>Cloud Cost Optimisation</h4>
+      <p>Right-size instances, identify idle resources, recommend reserved capacity changes.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">🔒</span>
+      <h4>Security Hardening</h4>
+      <p>Audit configs against CIS benchmarks, apply remediations, verify compliance automatically.</p>
+    </div>
+  </div>
+
+  <div class="finding secondary" style="margin-top: 0.9em;">
+    <strong>Next steps:</strong> Multi-node tuning · CI integration for regression detection · Fine-tuned domain model on tuning playbooks
+  </div>
+</section>
+
+<!-- =========================================================
+     SLIDE 10 — SUMMARY
+     ========================================================= -->
+<section>
+  <h2>Summary</h2>
+  <h3 style="color: var(--green);">From degraded system to peak performance — autonomously</h3>
+
+  <div class="summary-row">
+    <div class="summary-col">
+      <h4>What we built</h4>
+      <ul>
+        <li>4-phase autonomous agent: collect → analyze → remediate → verify</li>
+        <li>Claude-powered root cause analysis via tool-use API</li>
+        <li>Safe, logged, rollback-capable tuning engine</li>
+        <li>Full JSON + markdown audit reports</li>
+      </ul>
+    </div>
+    <div class="summary-col">
+      <h4>Results</h4>
+      <ul>
+        <li class="green">Small files: <strong>+419%</strong></li>
+        <li class="green">Medium files: <strong>+109%</strong></li>
+        <li class="green">Large files: <strong>+114%</strong></li>
+        <li>Cost: <strong>$0.04</strong> · 1 API call · 0 human hours</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="finding" style="margin-top: 0.9em; font-size: 0.82em;">
+    <strong>The key lesson:</strong> The most impactful fix (wrong NIC) was invisible to the human operator.
+    An agent that <em>systematically enumerates all system dimensions</em> finds what humans skip.
+  </div>
+
+  <p class="center dim small" style="margin-top: 0.8em;">
+    github.com/&lt;your-org&gt;/ai-perf-hackathon
+    &nbsp;·&nbsp;
+    Questions?
+  </p>
+</section>
+
+</div><!-- /slides -->
+</div><!-- /reveal -->
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    transitionSpeed: 'fast',
+    backgroundTransition: 'fade',
+    controls: true,
+    progress: true,
+    center: false,
+    width: 1280,
+    height: 720,
+    margin: 0.06,
+    plugins: [ RevealHighlight, RevealNotes ]
+  });
+</script>
+</body>
+</html>
